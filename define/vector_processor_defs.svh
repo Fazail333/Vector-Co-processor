@@ -4,4 +4,6 @@
 // The architecture of the processor 32 bit or 64 bit 
 `define XLEN 32
 
+`define VLEN 512
+
 `endif
