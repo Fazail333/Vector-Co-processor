@@ -5,3 +5,8 @@
 
 ## Rubrics for Contribution:
 - In order to contribute follow the ![Contribution_Rubrics](./CONTRIBUTING.md)
+
+
+## Block Diagram
+![Block_Diagram](/docs/vector_processor_docs/vector_processor_block_diagram.drawio.png)
+
