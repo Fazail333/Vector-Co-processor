@@ -1,5 +1,12 @@
+//Author        : Zawaher Bin Asim , UET Lahore
+//Description   : This the   register file of the vector processor
+// Date         : 20 Sep, 2024.
+
+`timescale 1ns / 1ps
+
+
+
 `include "../define/vec_regfile_defs.svh"
-`include "../define/vector_processor_defs.svh"
 
 module vec_regfile (
     // Inputs
@@ -12,9 +19,13 @@ module vec_regfile (
 
     // Outputs 
     output  logic   [DATA_WIDTH-1:0]        rdata_1, rdata_2,  // The read data from the vector register file
+    output  logic   [DATA_WIDTH-1:0]        dst_data,          // The data of the destination register that is to be replaced with the data after the opertaion and masking
     output  logic   [VECTOR_LENGTH-1:0]     vector_length,     // Width of the vector depending on LMUL
     output  logic                           wrong_addr         // Signal to indicate an invalid address
 );
+
+    logic temp_wrong_addr ;                                    // Temporary variable to hold error state
+    logic addr_error;                                          // Temporary signal for address error checking
 
     // Fixed-size Vector Register File (VLEN and MAX_VEC_REGISTERS)
     logic [`VLEN-1:0] vec_regfile [`MAX_VEC_REGISTERS-1:0];
@@ -34,52 +45,63 @@ module vec_regfile (
     end
 
     // Address validation and read operation
-    logic addr_error; // Temporary signal for address error checking
     always_comb begin
-        // Default values for rdata and addr_error
         rdata_1 = 'h0;
         rdata_2 = 'h0;
+        dst_data = 'h0;
         addr_error = 0;
 
+        // Read operation for rdata_1, rdata_2, and dst_data based on lmul
         case (lmul)
             4'b0001: begin // LMUL = 1
-                if (raddr_1 >= `MAX_VEC_REGISTERS || raddr_2 >= `MAX_VEC_REGISTERS) begin
+                if (raddr_1 >= `MAX_VEC_REGISTERS || raddr_2 >= `MAX_VEC_REGISTERS || waddr >= `MAX_VEC_REGISTERS) begin
                     addr_error = 1;
                 end else begin
                     rdata_1 = vec_regfile[raddr_1];
                     rdata_2 = vec_regfile[raddr_2];
+                    dst_data = vec_regfile[waddr]; // Read data at waddr
                 end
             end
             4'b0010: begin // LMUL = 2
-                if (raddr_1 >= `MAX_VEC_REGISTERS - 1 || raddr_2 >= `MAX_VEC_REGISTERS - 1 ||
-                    raddr_1 % 2 != 0 || raddr_2 % 2 != 0) begin
+                if (raddr_1 >= `MAX_VEC_REGISTERS - 1 || raddr_2 >= `MAX_VEC_REGISTERS - 1 || waddr >= `MAX_VEC_REGISTERS -1 ||
+                    raddr_1 % 2 != 0 || raddr_2 % 2 != 0 || waddr % 2 != 0) begin
                     addr_error = 1;
                 end else begin
                     rdata_1 = {vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
                     rdata_2 = {vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                    dst_data = {vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
                 end
             end
             4'b0100: begin // LMUL = 4
-                if (raddr_1 >= `MAX_VEC_REGISTERS - 3 || raddr_2 >= `MAX_VEC_REGISTERS - 3 ||
-                    raddr_1 % 4 != 0 || raddr_2 % 4 != 0) begin
+                if (raddr_1 >= `MAX_VEC_REGISTERS - 3 || raddr_2 >= `MAX_VEC_REGISTERS - 3 || waddr >= `MAX_VEC_REGISTERS -3 ||
+                    raddr_1 % 4 != 0 || raddr_2 % 4 != 0 || waddr % 4 != 0) begin
                     addr_error = 1;
                 end else begin
                     rdata_1 = {vec_regfile[raddr_1 + 3], vec_regfile[raddr_1 + 2], vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
                     rdata_2 = {vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                    dst_data = {vec_regfile[waddr + 3], vec_regfile[waddr + 2], vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
                 end
             end
             4'b1000: begin // LMUL = 8
-                if (raddr_1 >= `MAX_VEC_REGISTERS - 7 || raddr_2 >= `MAX_VEC_REGISTERS - 7 ||
-                    raddr_1 % 8 != 0 || raddr_2 % 8 != 0) begin
+                if (raddr_1 >= `MAX_VEC_REGISTERS - 7 || raddr_2 >= `MAX_VEC_REGISTERS - 7 || waddr >= `MAX_VEC_REGISTERS -7 ||
+                    raddr_1 % 8 != 0 || raddr_2 % 8 != 0 || waddr % 8 != 0) begin
                     addr_error = 1;
                 end else begin
                     rdata_1 = {vec_regfile[raddr_1 + 7], vec_regfile[raddr_1 + 6], vec_regfile[raddr_1 + 5], vec_regfile[raddr_1 + 4],
-                               vec_regfile[raddr_1 + 3], vec_regfile[raddr_1 + 2], vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
+                            vec_regfile[raddr_1 + 3], vec_regfile[raddr_1 + 2], vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
                     rdata_2 = {vec_regfile[raddr_2 + 7], vec_regfile[raddr_2 + 6], vec_regfile[raddr_2 + 5], vec_regfile[raddr_2 + 4],
-                               vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                            vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                    dst_data = {vec_regfile[waddr + 7], vec_regfile[waddr + 6], vec_regfile[waddr + 5], vec_regfile[waddr + 4],
+                                vec_regfile[waddr + 3], vec_regfile[waddr + 2], vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
                 end
             end
-            default: addr_error = 1;
+            default: begin 
+                rdata_1 = 'h0;
+                rdata_2 = 'h0;
+                dst_data = 'h0;
+                addr_error = 0;
+            end
+
         endcase
     end
 
@@ -93,6 +115,7 @@ module vec_regfile (
             wrong_addr <= 0;
         end else begin          
             if (wr_en) begin
+                wrong_addr <= 0;
                 // Check for valid write addresses
                 case (lmul)
                     4'b0001: begin
@@ -134,13 +157,15 @@ module vec_regfile (
                             vec_regfile[waddr + 7] <= wdata[8*`VLEN-1:7*`VLEN];
                         end
                     end
-                    default: wrong_addr <= 1;
+                    default: wrong_addr <= 0;
                 endcase
-            end
-            else begin
+            end else begin
                 wrong_addr <= addr_error;  // Capture address error during read
             end
+            
+            
         end
     end
+
 
 endmodule
