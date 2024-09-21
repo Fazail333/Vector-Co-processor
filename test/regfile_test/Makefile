@@ -1,5 +1,10 @@
-SOURCES_SV := ../../define/vec_regfile_defs.svh \
-            	../../src/vec_regfile.sv \
+# Author        : Zawaher Bin Asim , UET Lahore
+# Description   : This the Makefile  for  register file of the vector processor to test it separately
+# Date         : 19 Sep, 2024.
+
+
+
+SOURCES_SV :=  ../../src/vec_regfile.sv \
 				vec_regfile_tb.sv 
 
 SOURCES_CPP := vec_regfile_tb.cpp
@@ -54,7 +59,7 @@ $(TB_TOP)_snapshot.wdb: .elab.timestamp
 #                                                                #
 #================================================================#
 
-INCLUDE_DIR := define
+INCLUDE_DIR := ../../define
 
 VERILATOR_FLAGS := \
     --top-module $(MODULE) \
@@ -153,3 +158,4 @@ clean:
 	rm -rf *.wlf
 	rm -rf transcript
 	rm -rf .Xil log 
+	rm -rf *.bak *.ini
