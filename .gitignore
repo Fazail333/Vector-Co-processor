@@ -27,3 +27,5 @@ work
 1
 2
 log
+*.bak
+*.ini
