@@ -2,6 +2,8 @@
 //Description   : This the header file  for  register file of the vector processor
 // Date         : 13 Sep, 2024.
 
+`timescale 1ns / 1ps
+
 
 `ifndef vec_regfile_defs
 `define vec_regfile_defs
