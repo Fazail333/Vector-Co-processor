@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 module tb_vec_csr_dec #(
-=======
-module tb_decode #(
->>>>>>> 8339f23 (added unit test for csr and decode)
-    XLEN = 32,
+     XLEN = 32,
     VLMAX = 512
 )();
 
