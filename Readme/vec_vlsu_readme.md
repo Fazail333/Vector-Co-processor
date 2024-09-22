@@ -86,7 +86,7 @@ The **Vector Load/Store Unit (VLSU)** operates in various modes to handle memory
   - In **Stride Mode**, memory addresses for vector elements are spaced at regular intervals determined by a **stride value** (held in the `rs2` register). This allows non-contiguous memory accesses with a fixed pattern.
   
 - **Block Diagram**:
-  ![VLSU Stride Block Diagram](/docs/vectore_processor_docs/stride_datapath.png)
+  ![VLSU Stride Block Diagram](/docs/vector_processor_docs/stride_datapath.png)
 
 #### 3. **Gather**
 - **Description**: 
