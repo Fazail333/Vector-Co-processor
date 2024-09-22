@@ -1,4 +1,4 @@
-module tb_decode #(
+module tb_vec_csr_dec #(
     XLEN = 32,
     VLMAX = 512
 )();
