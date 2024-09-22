@@ -77,7 +77,7 @@ vec_decode vector_decode (
 );
 
 // implemented only for vectror configuration instructions
-vec_processor_controller vector_controller (
+vector_processor_controller vector_controller (
     // scalar_processor -> vector_exctension
         .vec_inst           (vec_inst),
 
