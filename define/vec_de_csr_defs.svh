@@ -1,3 +1,9 @@
+`ifndef vec_de_csr_defs
+`define vec_de_csr_defs
+
+`include "vector_processor_defs.svh"
+
+parameter VLMAX = 16 ;
   ////////////////////////////////
   //  Vector instruction types  //
   ////////////////////////////////

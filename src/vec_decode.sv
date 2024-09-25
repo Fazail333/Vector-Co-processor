@@ -1,12 +1,9 @@
 `include "../define/vec_de_csr_defs.svh"
 
-module vec_decode #(
-    XLEN = 32,
-    VLMAX = 512
-)(
+module vec_decode(
     // scalar_processor -> vec_decode
-    input logic [XLEN-1:0]      vec_inst,
-    input logic [XLEN-1:0]      rs1_i, rs2_i,
+    input logic [`XLEN-1:0]      vec_inst,
+    input logic [`XLEN-1:0]      rs1_i, rs2_i,
 
     // vec_decode -> scalar_processor
     output logic                is_vec,
@@ -20,8 +17,8 @@ module vec_decode #(
     output logic                vec_mask,
 
     // vec_decode -> csr 
-    output logic [XLEN-1:0]     vtype,                  // vector type
-    output logic [XLEN-1:0]     vl,                     // vector length
+    output logic [`XLEN-1:0]     vtype,                  // vector type
+    output logic [`XLEN-1:0]     vl,                     // vector length
     //output logic [4:0]          rd_o,
 
     // vec_control_signals -> vec_decode
@@ -43,8 +40,8 @@ logic [5:0]     vfunc6;
 logic           vm;         // vector mask
 
 // vector configuration 
-logic [XLEN-1:0]     rs1_o, rs2_o;
-logic [XLEN-1:0]     vlen_mux;
+logic [`XLEN-1:0]     rs1_o, rs2_o;
+logic [`XLEN-1:0]     vlen_mux;
 logic [10:0]         zimm;          // zero-extended immediate
 logic [4:0]          uimm;          // unsigned immediate
 

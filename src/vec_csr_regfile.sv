@@ -1,15 +1,12 @@
 `include "../define/vec_de_csr_defs.svh"
 
-module vec_csr_regfile #(
-    XLEN = 32,
-    VLMAX = 512
-) (
+module vec_csr_regfile (
     input logic                 clk,
     input logic                 n_rst,
 
     // vec_decode -> vec_csr_regs
-    input logic [XLEN-1:0]      vtype_i,
-    input logic [XLEN-1:0]      vl_i,
+    input logic [`XLEN-1:0]      vtype_i,
+    input logic [`XLEN-1:0]      vl_i,
 
     // vec_control_signals -> vec_csr_regs
     input logic                 csrwr_en,
@@ -20,11 +17,11 @@ module vec_csr_regfile #(
     output logic                vta,    // tail agnostic
     output logic                vma,    // mask agnostic
 
-    output logic [XLEN-1:0]     vlen
+    output logic [`XLEN-1:0]     vlen
 );
 
 csr_vtype_s csr_vtype;
-logic [XLEN-1:0] csr_vl;
+logic [`XLEN-1:0] csr_vl;
 
 // CSR registers vtype and vl (vector length)
 always_ff @(posedge clk, negedge n_rst) begin
