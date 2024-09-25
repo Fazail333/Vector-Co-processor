@@ -162,6 +162,14 @@ always_comb begin : vec_decode
                 end
             endcase
         end
+
+        // Vector load instructions
+            V_LOAD: begin
+                vec_write_addr  = vd;
+                vec_imm         = '0;
+                vec_mask        = vm;
+            end
+
         default: begin
             is_vec          = '0;
             vec_write_addr  = '0;
