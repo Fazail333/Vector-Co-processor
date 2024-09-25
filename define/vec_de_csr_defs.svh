@@ -4,12 +4,15 @@
 `include "vector_processor_defs.svh"
 
 parameter VLMAX = 16 ;
+parameter CSR_ADDR = 12;
+
   ////////////////////////////////
   //  Vector instruction types  //
   ////////////////////////////////
 
 typedef enum logic [6:0] {
-    V_ARITH = 7'h57
+    V_ARITH = 7'h57,
+    V_LOAD  = 7'h07
 } v_opcode_e;
 
 typedef enum logic [2:0] {
@@ -46,6 +49,13 @@ typedef enum logic [2:0] {
   EW64   = 3'b011,
   EWRSVD = 3'b1xx
 } vew_e;
+
+// CSR Registers addresses
+typedef enum logic [11:0] {
+  CSR_VSTART = 12'h008,
+  CSR_VTYPE  = 12'hC20,
+  CSR_VL     = 12'hC21
+} csr_reg_e;
 
 typedef struct packed {
     logic [31:26] func6;
