@@ -22,13 +22,24 @@ logic [4:0]         imm;
 logic               vm;     // vector mask 
 
 // vec_decode -> vec_csr
-logic [XLEN-1:0]    vtype_data;
-logic [XLEN-1:0]    vl_data;
+logic [XLEN-1:0]    scalar1;
+logic [XLEN-1:0]    scalar2;
 
 // vec_control_signals -> vec_decode
 logic               vl_sel;
 logic               vtype_sel;
 logic               rs1rd_de;
+logic               lumop_sel
+
+logic [4:0]         rd, rd_o;
+logic [5:0]         vfunc6;
+logic               vm;         // vector mask
+
+// vec_decode -> vector load
+logic [2:0]         width;
+logic               mew;
+logic [2:0]         nf;
+logic [XLEN-1:0]    rs1_o;
 
 // vec_control_signals -> vec_csr
 logic               csrwr_en;
@@ -64,16 +75,23 @@ vec_decode vector_decode (
         .vec_imm            (imm),
         .vec_mask           (vm),
 
-    // vec_decode -> csr
-        .vtype              (vtype_data),
-        .vl                 (vl_data),
+    // vec_decode -> vector_load
+        .width              (width),
+        .mew                (mew),
+        .nf                 (nf),
+        .rs1_o              (rs1_o),
 
-        .rd_o               (rd_addr),
+    // vec_decode -> csr
+        .scalar1            (scalar1),
+        .scalar2            (scalar2),
+
+        //.rd_o               (rd_addr),
 
     // vec_control_signals -> vec_decode
         .vl_sel             (vl_sel),
         .vtype_sel          (vtype_sel),
-        .rs1rd_de           (rs1rd_de)
+        .rs1rd_de           (rs1rd_de),
+        .lumop_sel          (lumop_sel)
 );
 
 // implemented only for vectror configuration instructions
@@ -85,6 +103,7 @@ vector_processor_controller vector_controller (
         .vl_sel             (vl_sel),
         .vtype_sel          (vtype_sel),
         .rs1rd_de           (rs1rd_de),
+        .lumop_sel          (lumop_sel),
 
     // vec_control_signals -> csr
         .csrwr_en           (csrwr_en)          
@@ -95,9 +114,13 @@ vec_csr_regfile vec_csr_regfile (
         .clk                (clk),
         .n_rst              (n_rst),
 
+    // scalar_processor -> csr_regfile
+        .inst               (vec_inst),
+        .rs1_i              (scalar1),
+
     // vec_decode -> vec_csr_regs
-        .vtype_i            (vtype_data),
-        .vl_i               (vl_data),
+        .vtype_i            (scalar1),
+        .vl_i               (scalar2),
 
     // vec_control_signals -> vec_csr_regs
         .csrwr_en           (csrwr_en),
