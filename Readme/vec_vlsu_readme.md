@@ -79,23 +79,16 @@ The **Vector Load/Store Unit (VLSU)** operates in various modes to handle memory
   - In **Unit Stride**, memory addresses for vector elements are accessed in contiguous order (i.e., the next element address is incremented by 1 from the previous address).
   
 - **Block Diagram**:
-  ![VLSU Unit Stride Block Diagram](/docs/vector_processor_docs/unitstride_datapath.png)
+  ![VLSU Unit Stride Block Diagram](/docs/vector_processor_docs/unit_stride_datapath.png)
 
 #### 2. **Stride**
 - **Description**: 
   - In **Stride Mode**, memory addresses for vector elements are spaced at regular intervals determined by a **stride value** (held in the `rs2` register). This allows non-contiguous memory accesses with a fixed pattern.
   
-- **Block Diagram**:
-  ![VLSU Stride Block Diagram](/docs/vector_processor_docs/stride_datapath.png)
-
 #### 3. **Gather**
 - **Description**: 
   - In **Gather Mode**, each memory element has a unique address offset, defined by the values in the `vs` vector register. This is used for gathering elements from scattered memory locations.
   
-- **Block Diagram**:
-  ![VLSU Gather Block Diagram](/docs/vector_processor_docs/gather_datapath.png)
-
-
 # Getting Started
 
 
