@@ -10,8 +10,6 @@
 
 `include "vector_processor_defs.svh"
 
-// The maximum length of the vector register
-`define   MAX_VLEN  4096  // Example maximum VLEN (adjust as needed)
 
 // Maximum number of vector registers (32 in total)
 `define   MAX_VEC_REGISTERS  32
