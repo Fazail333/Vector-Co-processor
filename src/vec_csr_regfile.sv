@@ -120,7 +120,7 @@ assign vta  = csr_vtype_q.vta;
 
 // Converts between the internal representation of `vtype_t` and the full XLEN-bit CSR.
 function logic[`XLEN-1:0] xlen_vtype(vtype_t vtype);
-  xlen_vtype = {vtype.vill, {riscv::XLEN-9{1'b0}}, vtype.vma, vtype.vta, vtype.vsew,
+  xlen_vtype = {vtype.vill, {23'h000000}, vtype.vma, vtype.vta, vtype.vsew,
     vtype.vlmul[2:0]};
 endfunction: xlen_vtype
 
@@ -166,7 +166,7 @@ always_comb begin
                     // Decode the CSR.
                     case (csr)
                         CSR_VSTART: begin
-                            csr_vstart_d    = csr_vstart_q & ~acc_req_i.rs1_i;
+                            csr_vstart_d    = csr_vstart_q & ~rs1_i;
                             csr_out         = csr_vstart_q;
                         end
                         CSR_VTYPE: begin

@@ -9,49 +9,59 @@ module vec_decode(
     output logic                is_vec,
 
     // vec_decode -> vec_regfile
-    output logic [4:0]          vec_read_addr_1,        // vs1
-    output logic [4:0]          vec_read_addr_2,        // vs2
-    //output logic [4:0]          scalar_addr,            // rs1
-    output logic [4:0]          vec_write_addr,         // vd
+    output logic [4:0]          vec_read_addr_1,        // vs1_addr
+    output logic [4:0]          vec_read_addr_2,        // vs2_addr
+    output logic [4:0]          vec_write_addr,         // vd_addr
     output logic [4:0]          vec_imm,
     output logic                vec_mask,
 
+    // vec_decode -> vector load
+    output logic [2:0]          width,                  // width of memory element
+    output logic                mew,                    // selection bwtween fp or integer
+    output logic [2:0]          nf,                     // number of fields
+    output logic [`XLEN-1:0]    rs1_o,                  // base address of memory           
+
     // vec_decode -> csr 
-    output logic [`XLEN-1:0]     vtype,                  // vector type
-    output logic [`XLEN-1:0]     vl,                     // vector length
-    //output logic [4:0]          rd_o,
+    output logic [`XLEN-1:0]     scalar2,               // vector type or rs2
+    output logic [`XLEN-1:0]     scalar1,               // vector length or rs1
 
     // vec_control_signals -> vec_decode
     input logic vl_sel,
     input logic vtype_sel,
+    input logic lumop_sel,
     input logic rs1rd_de
 );
 
 v_opcode_e      vopcode;
 v_func3_e       vfunc3;
 logic [1:0]     inst_msb;
-logic [4:0]     vs1;
-logic [4:0]     vs2;
-logic [4:0]     vd;
+logic [4:0]     vs1_addr;
+logic [4:0]     vs2_addr;
+logic [4:0]     vd_addr;
 logic [4:0]     rs1_addr;
 logic [4:0]     imm;
 logic [4:0]     rd, rd_o;
 logic [5:0]     vfunc6;
 logic           vm;         // vector mask
 
+// vector load
+logic [4:0]     lumop;      // additional unit stride
+logic [1:0]     mop;        // selection between strided and gather
+
 // vector configuration 
 logic [`XLEN-1:0]     rs1_o, rs2_o;
-logic [`XLEN-1:0]     vlen_mux;
+logic [`XLEN-1:0]     vlen_mux, vtype_mux;
 logic [10:0]         zimm;          // zero-extended immediate
 logic [4:0]          uimm;          // unsigned immediate
 
 assign vopcode  = v_opcode_e'(vec_inst[6:0]);
-assign vd       = vec_inst[11:7];
+assign vd_addr  = vec_inst[11:7];
 assign vfunc3   = v_func3_e'(vec_inst[14:12]);
-assign vs1      = vec_inst[19:15];
+assign vs1_addr = vec_inst[19:15];
 assign rs1_addr = vec_inst[19:15];
 assign imm      = vec_inst[19:15];
-assign vs2      = vec_inst[24:20];
+assign vs2_addr = vec_inst[24:20];
+assign lumop    = vec_inst[24:20];
 assign vm       = vec_inst[25];
 assign func6    = vec_inst[31:26];
 
@@ -59,8 +69,10 @@ assign func6    = vec_inst[31:26];
 assign inst_msb = vec_inst[31:30];
 
 // vector config
-//assign zimm = vec_inst[30:20];
 assign uimm = vec_inst[19:15];
+
+// vector load
+assign mop = vec_inst[27:26];
 
 always_comb begin : vec_decode
     is_vec          = '0;
@@ -68,41 +80,36 @@ always_comb begin : vec_decode
     vec_read_addr_1 = '0;
     vec_read_addr_2 = '0;
     vec_imm         = '0;
-    //scalar_addr     = '0;
     vec_mask        = '0;
     rs1_o           = '0;
     rs2_o           = '0;
     rd_o            = '0;
     zimm            = '0;
     case (vopcode)
-
         // vector arithematic and set instructions opcode = 0x57
         V_ARITH: begin
             is_vec          = 1;
             case (vfunc3)
                 OPIVV: begin
-                    vec_write_addr  = vd;
-                    vec_read_addr_1 = vs1;
-                    vec_read_addr_2 = vs2;
+                    vec_write_addr  = vd_addr;
+                    vec_read_addr_1 = vs1_addr;
+                    vec_read_addr_2 = vs2_addr;
                     vec_imm         = '0;
-                    //scalar_addr     = '0;
                     vec_mask        = vm;
                 end
                 OPIVI: begin
-                    vec_write_addr  = vd;
+                    vec_write_addr  = vd_addr;
                     vec_read_addr_1 = '0;
-                    vec_read_addr_2 = vs2;
+                    vec_read_addr_2 = vs2_addr;
                     vec_imm         = imm;
-                    //scalar_addr     = '0;
                     vec_mask        = vm;
                 end
                 OPIVX: begin
-                    vec_write_addr  = vd;
+                    vec_write_addr  = vd_addr;
                     vec_read_addr_1 = '0;
-                    vec_read_addr_2 = vs2;
+                    vec_read_addr_2 = vs2_addr;
                     vec_imm         = '0;
                     vec_mask        = vm;
-                    //scalar_addr     = rs1_addr;
                 end
 
                 // vector configuration instructions
@@ -153,7 +160,6 @@ always_comb begin : vec_decode
                     vec_read_addr_1 = '0;
                     vec_read_addr_2 = '0;
                     vec_imm         = '0;
-                    //scalar_addr     = '0;
                     vec_mask        = '0;
                     rs2_o           = '0;
                     rs1_o           = '0;
@@ -164,11 +170,21 @@ always_comb begin : vec_decode
         end
 
         // Vector load instructions
-            V_LOAD: begin
-                vec_write_addr  = vd;
-                vec_imm         = '0;
-                vec_mask        = vm;
-            end
+        V_LOAD: begin
+            vec_write_addr  = vd_addr;
+            vec_imm         = '0;
+            vec_mask        = vm;
+            mew             = vec_inst[28];
+            nf              = vec_inst[31:29];
+            rs1_o           = rs1_i;
+            case(mop)
+                // gather unordered
+                2'b01:vec_read_addr_2 = vs2_addr;
+                // gather ordered
+                2'b11:vec_read_addr_2 = vs2_addr;
+                default:vec_read_addr_2 = '0;
+            endcase
+        end
 
         default: begin
             is_vec          = '0;
@@ -176,7 +192,6 @@ always_comb begin : vec_decode
             vec_read_addr_1 = '0;
             vec_read_addr_2 = '0;
             vec_imm         = '0;
-            //scalar_addr     = '0;
             vec_mask        = '0;
             rs1_o           = '0;
             rs2_o           = '0;
@@ -186,21 +201,24 @@ always_comb begin : vec_decode
     endcase
 end
     
-/* Mux for vector configuration vtype and vl selections*/
+/* Mux for vector configuration scalar2 and scalar1 selections*/
 
-// mux for selection of uimm or rs1 for vl
+// mux for selection of uimm or rs1 for scalar1
 assign vlen_mux = (vl_sel) ? $unsigned(uimm) : rs1_o;
 
-// mux for selection of zimm or rs2 for vtype
-assign vtype = (vtype_sel) ? {'0 ,zimm} : rs2_o;
+// mux for selection of zimm or rs2 for scalar2
+assign vtype_mux = (vtype_sel) ? {'0 ,zimm} : rs2_o;
+
+// mux for selection of lumop or vtype
+assign scalar2   = (lumop_sel) ? $unsigned(lumop) : vtype_mux; 
 
 // AVL (application vector lenght) encoding
 // comparing rs1 and rd addresses with x0
 always_comb begin
     case (rs1rd_de)
-        1'b0: vl = VLMAX;         // rs1 == x0
-        1'b1: vl = ((vlen_mux > VLMAX) == 1) ? VLMAX : vlen_mux;      // rs1 != x0
-        default: vl = vlen_mux;
+        1'b0: scalar1 = VLMAX;         // rs1 == x0
+        1'b1: scalar1 = ((vlen_mux > VLMAX) == 1) ? VLMAX : vlen_mux;      // rs1 != x0
+        default: scalar1 = VLMAX;
     endcase
 end
 
