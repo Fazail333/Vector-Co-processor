@@ -32,6 +32,9 @@ module vec_regfile_tb(
     logic [ADDR_WIDTH-1:0] waddr;
     logic wr_en;
     logic [3:0] lmul;
+    logic [`VLEN -1 : 0]v0_mask_data;
+    logic mask_operation;
+    logic mask_wr_en;
 
     // Outputs
     logic [DATA_WIDTH-1:0] rdata_1;
@@ -54,7 +57,10 @@ module vec_regfile_tb(
         .rdata_2(rdata_2),
         .dst_data(dst_data),
         .vector_length(vector_length),
-        .wrong_addr(wrong_addr)
+        .wrong_addr(wrong_addr),
+        .mask_operation(mask_operation),
+        .v0_mask_data(v0_mask_data),
+        .mask_wr_en(mask_wr_en)
     );
 
     // Testbench Variables
@@ -85,6 +91,9 @@ module vec_regfile_tb(
 
         // Run the directed test
        // directed_test();
+
+       masking_operands_test();
+       @(negedge clk);
 
         $display("======= Starting Random Tests =======");
 
@@ -310,6 +319,65 @@ module vec_regfile_tb(
                 $display("Skipping the write in dummy regfile due to invalid address");
             end
         end
+
+    endtask
+
+    task masking_operands_test();
+        
+        logic expected_mask_reg_data_1 , expected_mask_reg_data_2 , expected_mask_reg_write_data;
+        logic mask_op;
+        
+        mask_op <= $urandom_range(0,1);
+        if (mask_op == 0)begin
+            raddr_1 <= $urandom_range(0,31);
+            raddr_2 <= $urandom_range(0,31);
+            @(negedge clk);
+            read_data_1 <= rdata_1;
+            read_data_2 <= rdata_2;
+
+            expected_mask_reg_data_1 <= expected_data[raddr_1];
+            expected_mask_reg_data_2 <= expected_data[raddr_2];
+
+            @(negedge clk);
+
+            if((expected_mask_reg_data_1 == read_data_1) && (expected_mask_reg_data_2 == read_data_2))begin
+                $display("=================== Masking Operand Test Passed =========================");
+                $display("read_data_1 =  %d  |  read_data_2 = %d ", read_data_1 , read_data_2 );
+
+            end
+            else begin
+                $display("=================== Masking Operand Test Failed =========================");
+                $display("read_data_1 =  %d  |  expected_read_data_1 = %d ", read_data_1 , expected_mask_reg_data_1 );
+                $display("read_data_2 =  %d  |  expected_read_data_2 = %d ", read_data_2 , expected_mask_reg_data_2 );
+            end
+        end
+
+        else begin
+
+            $display("THE DATA OF MASK REG BEFORE WRITE is : %d" , v0_mask_data);
+            waddr <= 'h0;
+            wdata <= 'hDEADBEEF;
+            mask_wr_en <= 1'b1;
+            @(negedge clk);
+            mask_wr_en <= 1'b0;
+
+
+            // write the data to the v0 register  of the expected data
+            expected_data[waddr] = 'hDEADBEEF;
+
+            @(negedge clk);
+            
+            if (expected_data[waddr] == v0_mask_data)begin
+                $display("=================== MASKING WRITE TEST PASSED ==================");
+                $display("THE DATA OF MASK REG AFTER WRITE is : %d" , v0_mask_data);  
+            end
+            else begin
+                $display("=================== MASKING WRITE TEST FAILED ==================");
+                $display("THE DATA OF MASK REG AFTER WRITE is : %d" , v0_mask_data);
+                $display("THE EXPECTED MASK REG DATA : %d ", 'hDEADBEEF);
+            end
+        end
+
     endtask
 
     task directed_test();
