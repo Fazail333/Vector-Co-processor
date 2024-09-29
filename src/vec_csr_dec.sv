@@ -22,7 +22,7 @@ logic [4:0]         imm;
 logic               vm;     // vector mask 
 
 // vec_decode -> vec_csr
-logic [XLEN-1:0]    scalar1;
+logic [XLEN-1:0]    scalar1, csr_out;
 logic [XLEN-1:0]    scalar2;
 
 // vec_control_signals -> vec_decode
@@ -131,7 +131,8 @@ vec_csr_regfile vec_csr_regfile (
         .vta                (vta),
         .vma                (vma),
 
-        .vlen               (vlen) 
+        .vlen               (vlen),
+        .csr_out            (csr_out)
 );
 
 endmodule
