@@ -6,14 +6,13 @@ module vec_csr_regfile (
 
     // scalar_processor -> csr_regfile
     input logic [`XLEN-1:0]     inst,
-    input logic [`XLEN-1:0]     rs1_i,
 
     // csr_regfile -> scalar_processor
     output logic [`XLEN-1:0]    csr_out,
 
     // vec_decode -> vec_csr_regs
-    input logic [`XLEN-1:0]     vtype_i,
-    input logic [`XLEN-1:0]     vl_i,
+    input logic [`XLEN-1:0]     scalar2,    // vtype-csr
+    input logic [`XLEN-1:0]     scalar1,    // vlen-csr / vstart-csr
 
     // vec_control_signals -> vec_csr_regs
     input logic                 csrwr_en,
@@ -21,10 +20,11 @@ module vec_csr_regfile (
     // vec_csr_regs ->
     output logic [3:0]          vlmul,
     output logic [5:0]          sew,
-    output logic                vta,    // tail agnostic
-    output logic                vma,    // mask agnostic
+    output logic                tail_agnostic,    // vector tail agnostic
+    output logic                mask_agnostic,    // vector mask agnostic
 
-    output logic [`XLEN-1:0]     vlen
+    output logic [`XLEN-1:0]     vec_length,
+    output logic [`XLEN-1:0]     start_element
 );
 
 csr_vtype_s         csr_vtype_q;
@@ -37,16 +37,16 @@ logic [6:0]     opcode;
 logic [4:0]     rs1_addr;
 logic [4:0]     rd_addr;
 logic [2:0]     funct3;
-csr_reg_e       csr;  
+csr_reg_e       csr_addr;  
 
 assign opcode   = inst [6:0];
 assign rd_addr  = inst [11:7];
 assign funct3   = inst [14:12];
 assign rs1_addr = inst [19:15];
-assign csr      = csr_reg_e'(inst [31:20]);  
+assign csr_addr = csr_reg_e'(inst [31:20]);  
 
 // Two vector CSR registers vtype and vl are written by using only one 'vsetvli' instruction
-// these two registers are not written by the simple read write csr.
+// these two registers are not written by the simple read write csr_addr.
  
 // CSR registers vtype and vl (vector length)
 
@@ -66,11 +66,11 @@ always_ff @(posedge clk, negedge n_rst) begin
     end
     else if (csrwr_en) begin
         csr_vtype_q.ill   <= '0;
-        csr_vtype_q.vma   <= vtype_i[7];
-        csr_vtype_q.vta   <= vtype_i[6];
-        csr_vtype_q.vsew  <= vtype_i[5:3];
-        csr_vtype_q.vlmul <= vtype_i[2:0];
-        csr_vl_q          <= vl_i;
+        csr_vtype_q.vma   <= scalar2[7];
+        csr_vtype_q.vta   <= scalar2[6];
+        csr_vtype_q.vsew  <= scalar2[5:3];
+        csr_vtype_q.vlmul <= scalar2[2:0];
+        csr_vl_q          <= scalar1;
     end 
     else begin 
         csr_vtype_q <= csr_vtype_q;
@@ -110,9 +110,10 @@ always_comb begin
     endcase
 end
 
-assign vlen = csr_vl_q;
-assign vma  = csr_vtype_q.vma;
-assign vta  = csr_vtype_q.vta;
+assign vec_length = csr_vl_q;
+assign start_element  = csr_vstart_q;
+assign mask_agnostic  = csr_vtype_q.vma;
+assign tail_agnostic  = csr_vtype_q.vta;
 
 ////////////////////////////
 //  CSR Reads and Writes  //
@@ -133,10 +134,10 @@ always_comb begin
             case (funct3)
                 3'b001: begin // csrrw
                     // Decode the CSR.
-                    case (csr)
+                    case (csr_addr)
                         // Only vstart can be written with CSR instructions.
                         CSR_VSTART: begin
-                            csr_vstart_d    = rs1_i;
+                            csr_vstart_d    = scalar1;
                             csr_out         = csr_vstart_q;
                         end
                         default: illegal_insn = 1'b1;
@@ -144,9 +145,9 @@ always_comb begin
                 end
                 3'b010: begin // csrrs
                     // Decode the CSR.
-                    case (csr)
+                    case (csr_addr)
                         CSR_VSTART: begin
-                            csr_vstart_d    = csr_vstart_q | rs1_i;
+                            csr_vstart_d    = csr_vstart_q | scalar1;
                             csr_out         = csr_vstart_q;
                         end
                         CSR_VTYPE: begin
@@ -164,9 +165,9 @@ always_comb begin
                 end
                 3'b011: begin // csrrc
                     // Decode the CSR.
-                    case (csr)
+                    case (csr_addr)
                         CSR_VSTART: begin
-                            csr_vstart_d    = csr_vstart_q & ~rs1_i;
+                            csr_vstart_d    = csr_vstart_q & ~scalar1;
                             csr_out         = csr_vstart_q;
                         end
                         CSR_VTYPE: begin
@@ -184,10 +185,10 @@ always_comb begin
                 end
                 3'b101: begin // csrrwi
                     // Decode the CSR.
-                    case (csr)
+                    case (csr_addr)
                         // Only vstart can be written with CSR instructions.
                         CSR_VSTART: begin
-                            csr_vstart_d    = rs1_i;
+                            csr_vstart_d    = scalar1;
                             csr_out         = csr_vstart_q;
                         end
                     default: illegal_insn = 1'b1;
@@ -195,9 +196,9 @@ always_comb begin
                 end
                 3'b110: begin // csrrsi
                     // Decode the CSR.
-                    case (csr)
+                    case (csr_addr)
                         CSR_VSTART: begin
-                            csr_vstart_d  = csr_vstart_q | rs1_i;
+                            csr_vstart_d  = csr_vstart_q | scalar1;
                             csr_out       = csr_vstart_q;
                         end
                         CSR_VTYPE: begin
@@ -215,9 +216,9 @@ always_comb begin
                 end
                 3'b111: begin // csrrci
                     // Decode the CSR.
-                    case (csr)
+                    case (csr_addr)
                         CSR_VSTART: begin
-                            csr_vstart_d = csr_vstart_q & ~rs1_i;
+                            csr_vstart_d = csr_vstart_q & ~scalar1;
                             csr_out      = csr_vstart_q;
                         end
                         CSR_VTYPE: begin

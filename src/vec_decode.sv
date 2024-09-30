@@ -3,7 +3,8 @@
 module vec_decode(
     // scalar_processor -> vec_decode
     input logic [`XLEN-1:0]      vec_inst,
-    input logic [`XLEN-1:0]      rs1_i, rs2_i,
+    input logic [`XLEN-1:0]      rs1_data, 
+    input logic [`XLEN-1:0]      rs2_data,
 
     // vec_decode -> scalar_processor
     output logic                is_vec,
@@ -18,18 +19,18 @@ module vec_decode(
     // vec_decode -> vector load
     output logic [2:0]          width,                  // width of memory element
     output logic                mew,                    // selection bwtween fp or integer
-    output logic [2:0]          nf,                     // number of fields
-    output logic [`XLEN-1:0]    rs1_o,                  // base address of memory           
+    output logic [2:0]          nf,                     // number of fields          
 
     // vec_decode -> csr 
     output logic [`XLEN-1:0]     scalar2,               // vector type or rs2
-    output logic [`XLEN-1:0]     scalar1,               // vector length or rs1
+    output logic [`XLEN-1:0]     scalar1,               // vector length or rs1 (base address)
 
     // vec_control_signals -> vec_decode
-    input logic vl_sel,
-    input logic vtype_sel,
-    input logic lumop_sel,
-    input logic rs1rd_de
+    input logic vl_sel,                 // selection for rs1_data or uimm
+    input logic vtype_sel,              // selection for rs2_data or zimm
+    input logic lumop_sel,              // selection lumop
+    input logic rs1rd_de,               // selection for VLMAX or comparator
+    input logic rs1_sel                 // selection for rs1_data
 );
 
 v_opcode_e      vopcode;
@@ -70,7 +71,7 @@ assign inst_msb = vec_inst[31:30];
 
 // vector config
 assign uimm = vec_inst[19:15];
-
+is_vec          = 1;
 // vector load
 assign mop = vec_inst[27:26];
 
@@ -117,7 +118,7 @@ always_comb begin : vec_decode
                     case (inst_msb[1])
                     // VSETVLI
                         1'b0: begin
-                            rs1_o = rs1_i;
+                            rs1_o = rs1_data;
                             rs2_o =  '0; 
                             rd_o  = rd;
                             zimm  = vec_inst [30:20];
@@ -133,8 +134,8 @@ always_comb begin : vec_decode
                                 end
                             // VSETVL
                                 1'b0: begin
-                                    rs1_o = rs1_i;
-                                    rs2_o = rs2_i;
+                                    rs1_o = rs1_data;
+                                    rs2_o = rs2_data;
                                     rd_o  =  rd;
                                     zimm  =  '0;
                                 end
@@ -171,12 +172,13 @@ always_comb begin : vec_decode
 
         // Vector load instructions
         V_LOAD: begin
+            is_vec          = 1;
             vec_write_addr  = vd_addr;
             vec_imm         = '0;
             vec_mask        = vm;
             mew             = vec_inst[28];
             nf              = vec_inst[31:29];
-            rs1_o           = rs1_i;
+            //rs1_o           = rs1_data;             // base address using scalar1
             case(mop)
                 // gather unordered
                 2'b01:vec_read_addr_2 = vs2_addr;
@@ -210,14 +212,17 @@ assign vlen_mux = (vl_sel) ? $unsigned(uimm) : rs1_o;
 assign vtype_mux = (vtype_sel) ? {'0 ,zimm} : rs2_o;
 
 // mux for selection of lumop or vtype
-assign scalar2   = (lumop_sel) ? $unsigned(lumop) : vtype_mux; 
+assign scalar2   = (lumop_sel) ? $unsigned(lumop) : vtype_mux;
+
+// comparator for selecting vlen_mux or VLMAX for CSR vlen
+assign vlen_compare = ((vlen_mux > VLMAX) == 1) ? VLMAX : vlen_mux; // rs1 != x0
 
 // AVL (application vector lenght) encoding
 // comparing rs1 and rd addresses with x0
 always_comb begin
     case (rs1rd_de)
         1'b0: scalar1 = VLMAX;         // rs1 == x0
-        1'b1: scalar1 = ((vlen_mux > VLMAX) == 1) ? VLMAX : vlen_mux;      // rs1 != x0
+        1'b1: scalar1 = (rs1_sel)? vlen_mux : vlen_compare;      
         default: scalar1 = VLMAX;
     endcase
 end
