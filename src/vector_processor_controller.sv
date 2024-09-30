@@ -1,6 +1,6 @@
 `include "../define/vec_de_csr_defs.svh"
 
-module vec_processor_controller #(
+module vector_processor_controller #(
     XLEN = 32
 )(
     // scalar_processor -> vector_extension
@@ -19,16 +19,12 @@ module vec_processor_controller #(
 
 v_opcode_e      vopcode;
 v_func3_e       vfunc3;
-v_conf_e        inst_msb;
 logic [1:0]     mop;
 
 assign vopcode  = v_opcode_e'(vec_inst[6:0]);
 
 // vfunc3 for differentiate between arithematic and configuration instructions
 assign vfunc3   = v_func3_e'(vec_inst[14:12]);
-
-// instruction decide's the vector configuration registers
-assign inst_msb = v_conf_e'(vec_inst[31:30]);
 
 // vector load instruction
 assign mop      = vec_inst[27:26];
@@ -53,12 +49,14 @@ always_comb begin
                     1'b0: begin
                         vl_sel    = '0;
                         vtype_sel =  1;     //zimm selection
-                        if ((rs1_addr == '0) && (rd_addr == '0))
+                        if ((rs1_addr == '0) && (rd_addr == '0)) begin
                             rs1rd_de = '0;
                             rs1_sel  = 1;
-                        else 
+                        end
+                        else begin 
                             rs1rd_de = 1;
                             rs1_sel  = '0;
+                        end
                     end
                     1'b1: begin
                         case (vec_inst[30])
@@ -73,12 +71,14 @@ always_comb begin
                         1'b0: begin
                             vl_sel    = '0;
                             vtype_sel = '0;
-                            if ((rs1_addr == '0) && (rd_addr == '0))
+                            if ((rs1_addr == '0) && (rd_addr == '0)) begin
                                 rs1rd_de = '0;
                                 rs1_sel  = 1;
-                            else 
+                            end
+                            else begin
                                 rs1rd_de = 1;
                                 rs1_sel  = '0;
+                            end
                         end
                         default: begin
                             vl_sel    = '0;

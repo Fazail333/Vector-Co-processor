@@ -120,15 +120,14 @@ assign tail_agnostic  = csr_vtype_q.vta;
 ////////////////////////////
 
 // Converts between the internal representation of `vtype_t` and the full XLEN-bit CSR.
-function logic[`XLEN-1:0] xlen_vtype(vtype_t vtype);
-  xlen_vtype = {vtype.vill, {23'h000000}, vtype.vma, vtype.vta, vtype.vsew,
+function logic[`XLEN-1:0] xlen_vtype(csr_vtype_s vtype);
+  xlen_vtype = {vtype.ill, {23'h000000}, vtype.vma, vtype.vta, vtype.vsew,
     vtype.vlmul[2:0]};
 endfunction: xlen_vtype
 
 always_comb begin
-    case (opcode) 
-        begin
-        csr_vstart_d = '0;
+    csr_vstart_d = '0;
+    case (opcode)
         // CSR instructions
         7'h73: begin
             case (funct3)
@@ -239,11 +238,11 @@ always_comb begin
                     illegal_insn = 1'b1;
                 end
             endcase // funct3
-            end
         end
 
         default: begin
         // Trigger an illegal instruction
+        csr_out = '0;
         illegal_insn = 1'b1;
         end
     endcase
