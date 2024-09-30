@@ -10,7 +10,8 @@ module vec_processor_controller #(
     output logic                vl_sel,
     output logic                vtype_sel,
     output logic                rs1rd_de,
-    output logic                lumop_sel, 
+    output logic                lumop_sel,
+    output logic                rs1_sel,
 
     // vec_control_signals -> vec_csr
     output logic                csrwr_en
@@ -37,6 +38,10 @@ assign rd_addr = vec_inst[11:7];
 
 always_comb begin
     lumop_sel = '0;
+    rs1_sel   = '0;
+    csrwr_en  = '0;
+    vl_sel    = '0;
+    vtype_sel = '0;
     case (vopcode)
     V_ARITH: begin
         case (vfunc3)
@@ -50,8 +55,10 @@ always_comb begin
                         vtype_sel =  1;     //zimm selection
                         if ((rs1_addr == '0) && (rd_addr == '0))
                             rs1rd_de = '0;
+                            rs1_sel  = 1;
                         else 
                             rs1rd_de = 1;
+                            rs1_sel  = '0;
                     end
                     1'b1: begin
                         case (vec_inst[30])
@@ -60,6 +67,7 @@ always_comb begin
                             vl_sel    = 1;
                             vtype_sel = 1;
                             rs1rd_de  = 1;
+                            rs1_sel   = '0;
                         end
                     // VSETIVL
                         1'b0: begin
@@ -67,13 +75,16 @@ always_comb begin
                             vtype_sel = '0;
                             if ((rs1_addr == '0) && (rd_addr == '0))
                                 rs1rd_de = '0;
+                                rs1_sel  = 1;
                             else 
                                 rs1rd_de = 1;
+                                rs1_sel  = '0;
                         end
                         default: begin
                             vl_sel    = '0;
                             vtype_sel = '0;
                             rs1rd_de  = 1;
+                            rs1_sel   = 1;
                         end
                         endcase
                     end
@@ -81,6 +92,7 @@ always_comb begin
                         vl_sel    = '0;
                         vtype_sel = '0;
                         rs1rd_de  = 1;
+                        rs1_sel   = 1;
                     end
                 endcase
             end
@@ -90,12 +102,14 @@ always_comb begin
                 vl_sel    = '0;
                 vtype_sel = '0;
                 rs1rd_de  =  1;
+                rs1_sel   =  1;
             end
         endcase
     end
     V_LOAD: begin
-        csrwr_en = '0;
-        vl_sel = '0;
+        rs1_sel = 1;        // selection for base address
+        vl_sel  = '0;
+        rs1rd_de = 1;
         case (mop)
             2'b00: begin
                 vtype_sel = 1;       // 1 or 0 don't care
@@ -116,9 +130,12 @@ always_comb begin
                 lumop_sel = 1;       // 1 or 0 don't care
             end
             default: begin
-                
+                rs1_sel   =  1;
+                vl_sel    =  1;
+                rs1rd_de  =  1;
+                vtype_sel =  1;
+                lumop_sel = '0;
             end
-            default:
         endcase
     end
     default: begin
@@ -126,7 +143,8 @@ always_comb begin
         vl_sel    = '0;
         vtype_sel = '0;
         rs1rd_de  =  1;
-        lumop_sel = '0
+        lumop_sel = '0;
+        rs1_sel   =  1;
     end
     endcase    
 end
