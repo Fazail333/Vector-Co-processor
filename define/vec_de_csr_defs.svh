@@ -66,3 +66,5 @@ typedef struct packed {
     logic [11:7] rd;
     logic [6:0] opcode;
 } varith_type_t;
+
+`endif
