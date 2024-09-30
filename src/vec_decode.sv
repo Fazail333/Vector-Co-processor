@@ -41,8 +41,6 @@ logic [4:0]     vs2_addr;
 logic [4:0]     vd_addr;
 logic [4:0]     rs1_addr;
 logic [4:0]     imm;
-logic [4:0]     rd, rd_o;
-logic [5:0]     vfunc6;
 logic           vm;         // vector mask
 
 // vector load
@@ -51,7 +49,7 @@ logic [1:0]     mop;        // selection between strided and gather
 
 // vector configuration 
 logic [`XLEN-1:0]     rs1_o, rs2_o;
-logic [`XLEN-1:0]     vlen_mux, vtype_mux;
+logic [`XLEN-1:0]     vlen_mux, vtype_mux, vlen_compare;
 logic [10:0]         zimm;          // zero-extended immediate
 logic [4:0]          uimm;          // unsigned immediate
 
@@ -71,7 +69,7 @@ assign inst_msb = vec_inst[31:30];
 
 // vector config
 assign uimm = vec_inst[19:15];
-is_vec          = 1;
+
 // vector load
 assign mop = vec_inst[27:26];
 
@@ -84,7 +82,6 @@ always_comb begin : vec_decode
     vec_mask        = '0;
     rs1_o           = '0;
     rs2_o           = '0;
-    rd_o            = '0;
     zimm            = '0;
     case (vopcode)
         // vector arithematic and set instructions opcode = 0x57
@@ -120,7 +117,6 @@ always_comb begin : vec_decode
                         1'b0: begin
                             rs1_o = rs1_data;
                             rs2_o =  '0; 
-                            rd_o  = rd;
                             zimm  = vec_inst [30:20];
                         end
                         1'b1: begin
@@ -128,21 +124,18 @@ always_comb begin : vec_decode
                             // VSETIVLI
                                 1'b1: begin
                                     rs1_o = '0;
-                                    rs2_o = '0;
-                                    rd_o  = rd; 
+                                    rs2_o = '0; 
                                     zimm  = {'0,vec_inst [29:20]};
                                 end
                             // VSETVL
                                 1'b0: begin
                                     rs1_o = rs1_data;
                                     rs2_o = rs2_data;
-                                    rd_o  =  rd;
                                     zimm  =  '0;
                                 end
                             default: begin
                                 rs1_o = '0;
                                 rs2_o = '0;
-                                rd_o  = '0;
                                 zimm  = '0;
                             end
                             endcase
@@ -150,7 +143,6 @@ always_comb begin : vec_decode
                         default: begin
                             rs1_o = '0;
                             rs2_o = '0;
-                            rd_o  = '0;
                             zimm  = '0;
                         end
                     endcase
@@ -164,7 +156,6 @@ always_comb begin : vec_decode
                     vec_mask        = '0;
                     rs2_o           = '0;
                     rs1_o           = '0;
-                    rd_o            = '0;
                     zimm            = '0;
                 end
             endcase
@@ -178,7 +169,7 @@ always_comb begin : vec_decode
             vec_mask        = vm;
             mew             = vec_inst[28];
             nf              = vec_inst[31:29];
-            //rs1_o           = rs1_data;             // base address using scalar1
+            width           = vec_inst[14:12];
             case(mop)
                 // gather unordered
                 2'b01:vec_read_addr_2 = vs2_addr;
@@ -197,8 +188,10 @@ always_comb begin : vec_decode
             vec_mask        = '0;
             rs1_o           = '0;
             rs2_o           = '0;
-            rd_o            = '0;
             zimm            = '0;
+            mew             = '0;
+            nf              = '0;
+            width           = '0;
         end
     endcase
 end
