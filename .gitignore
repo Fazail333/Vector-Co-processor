@@ -8,6 +8,7 @@ work
 transcript
 *.wlf
 vivado
+.vscode
 *.log
 *.jou
 SIM
