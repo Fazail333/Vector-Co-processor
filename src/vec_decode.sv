@@ -171,6 +171,7 @@ always_comb begin : vec_decode
             nf              = vec_inst[31:29];
             width           = vec_inst[14:12];
             case(mop)
+                2'b10: rs2_o = rs2_data;
                 // gather unordered
                 2'b01:vec_read_addr_2 = vs2_addr;
                 // gather ordered
