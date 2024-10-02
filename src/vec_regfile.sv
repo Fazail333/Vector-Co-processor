@@ -2,7 +2,6 @@
 //Description   : This the   register file of the vector processor
 // Date         : 20 Sep, 2024.
 
-`timescale 1ns / 1ps
 
 
 

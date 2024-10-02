@@ -1,27 +1,28 @@
 `include "../define/vec_de_csr_defs.svh"
 
-module vector_processor_controller #(
-    XLEN = 32
-)(
+`include "../define/vector_processor_defs.svh"
+
+module vector_processor_controller (
+
     // scalar_processor -> vector_extension
-    input logic [XLEN-1:0]      vec_inst,
+    input logic [`XLEN-1:0]      vec_inst,
 
     // vec_control_signals -> vec_decode
-    output logic                vl_sel,
-    output logic                vtype_sel,
-    output logic                rs1rd_de,
-    output logic                lumop_sel,
-    output logic                rs1_sel,
+    output  logic               vl_sel,             // selection for rs1_data or uimm
+    output  logic               vtype_sel,          // selection for rs2_data or zimm
+    output  logic               lumop_sel,          // selection lumop
+    output  logic               rs1rd_de,           // selection for VLMAX or comparator
+    output  logic               rs1_sel,            // selection for rs1_data
 
     // vec_control_signals -> vec_csr
-    output logic                csrwr_en,
+    output  logic                csrwr_en,
 
     // Vec_control_signals -> vec_registerfile
-    output logic                vec_reg_wr_en,      // The enable signal to write in the vector register
-    output logic                mask_operation,     // This signal tell this instruction is going to perform mask register update
-    output logic                mask_wr_en,         // This the enable signal for updating the mask value
-    output logic   [1:0]        data_mux1_sel,      // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
-    output logic                data_mux2_sel       // This the selsction of the mux to select between scaler2 , and vec_data2
+    output  logic                vec_reg_wr_en,      // The enable signal to write in the vector register
+    output  logic                mask_operation,     // This signal tell this instruction is going to perform mask register update
+    output  logic                mask_wr_en,         // This the enable signal for updating the mask value
+    output  logic   [1:0]        data_mux1_sel,      // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
+    output  logic                data_mux2_sel       // This the selsction of the mux to select between scaler2 , and vec_data2
 
 );
 
