@@ -5,7 +5,9 @@
 `include "../define/vector_processor_defs.svh"
 `include "../define/vec_regfile_defs.svh"
 
-module vector_processor_datapth (
+module vector_processor_datapth #(
+    parameter SEW = 32
+)(
     
     input   logic   clk,reset,
     
@@ -14,11 +16,21 @@ module vector_processor_datapth (
     input   logic   [`XLEN-1:0] rs1_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
     input   logic   [`XLEN-1:0] rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
+    //Inputs from main_memory -> vec_lsu
+    input   logic   [SEW-1:0]   mem2lsu_data,
+
+    // Output from  vec_lsu -> main_memory
+    output  logic   [`XLEN-1:0] lsu2mem_addr,
+
     // Outputs from vector rocessor --> scaler processor
     output  logic               is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
     
+    // Output from vector processor lsu --> memory
+    output  logic               is_loaded,         // It tells that data is loaded from the memory and ready to be written in register file
+    
     // csr_regfile -> scalar_processor
     output  logic   [`XLEN-1:0] csr_out,            // 
+
 
 
     // Inputs from the controller --> datapath
@@ -39,8 +51,11 @@ module vector_processor_datapth (
     input   logic                mask_wr_en,        // This the enable signal for updating the mask value
 
     input   logic   [1:0]        data_mux1_sel,     // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
-    input   logic                data_mux2_sel      // This the selsction of the mux to select between scaler2 , and vec_data2
+    input   logic                data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
 
+    // vec_control_signals -> vec_lsu
+    input   logic                stride_sel,         // tells that  it is a unit stride or the indexed
+    input   logic                ld_inst             // tells that it is load insruction or store one
 
 );
 
@@ -52,6 +67,9 @@ logic   [`MAX_VLEN-1:0] vec_imm;
 
 // signal that tells that if the masking is  enabled or not
 logic  vec_mask;
+
+// The enable  signal for the vec_register file after the load of the data from the memory
+logic   vec_wr_en;
 
 // The width of the memory element that has to be loaded from the memory
 logic   [2:0] width;
@@ -66,6 +84,7 @@ logic   [2:0] nf;
 // The scaler output from the decode that could be imm ,rs1_data ,rs2_data and address in case of the load based on the instruction 
 logic   [`XLEN-1:0] scalar1;
 logic   [`XLEN-1:0] scalar2;
+
 
 // The extended scaler 1 and scaler 2 upto MAX_VLEN
 logic   [`MAX_VLEN-1:0] scaler1_extended ,scaler2_extended; 
@@ -91,6 +110,7 @@ logic   [`VLEN-1:0]             v0_mask_data;           // The data of the mask 
 // Outputs of the data selection muxes after register file
 logic   [`MAX_VLEN-1:0]         data_mux1_out;          // selection between the vec_reg_data_1 , vec_imm , scalar1
 logic   [`MAX_VLEN-1:0]         data_mux2_out;          // selection between the vec_reg_data_2 , scaler2
+
 
 
              //////////////////////
@@ -178,7 +198,7 @@ logic   [`MAX_VLEN-1:0]         data_mux2_out;          // selection between the
         .raddr_2        (vec_read_addr_2),  
         .wdata          (vec_wr_data    ),          
         .waddr          (vec_write_addr ),
-        .wr_en          (vec_reg_wr_en  ), 
+        .wr_en          (vec_wr_en      ), 
         .lmul           (vlmul          ),
         .mask_operation (mask_operation ), 
         .mask_wr_en     (mask_wr_en     ),                                                
@@ -227,6 +247,47 @@ logic   [`MAX_VLEN-1:0]         data_mux2_out;          // selection between the
         .mux_out        (data_mux2_out      )     
     );
 
+             //////////////////////
+            //      VLSU        //
+           //////////////////////          
+
+
+    vec_lsu VLSU(
+        .clk            (clk),
+        .n_rst          (reset),
+
+        // scalar-processor -> vec_lsu
+        .rs1_data       (data_mux1_out[`XLEN-1:0]),  
+        .rs2_data       (data_mux2_out[`XLEN-1:0]),
+
+        // vector_processor_controller -> vec_lsu
+        .stride_sel     (stride_sel), 
+        .ld_inst        (ld_inst),      
+
+        // vec_decode -> vec_lsu
+        .mew            (mew),          
+        .width          (width),      
+
+        // vec_lsu -> main_memory
+        .lsu2mem_addr   (lsu2mem_addr),
+
+        // main_memory -> vec_lsu
+        .mem2lsu_data   (mem2lsu_data),
+
+        // vec_lsu  -> vec_register_file
+        .vd_data        (vec_wr_data), 
+        .is_loaded      (is_loaded)  
+    );
+
+
+    data_mux_2x1 #(.width(1'b1)) VLSU_DATA_MUX(
+        
+        .operand1       (vec_reg_wr_en      ),
+        .operand2       (1'b0               ),
+        .sel            (is_loaded          ),
+        .mux_out        (vec_wr_en          )     
+    
+    );
     
 
 

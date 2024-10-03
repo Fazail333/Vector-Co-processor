@@ -4,7 +4,9 @@
 
 `include "../define/vector_processor_defs.svh"
 
-module vector_processor(
+module vector_processor#(
+    parameter SEW = 32
+)(
 
     input   logic   clk,reset,
     
@@ -15,6 +17,16 @@ module vector_processor(
 
     // Outputs from vector rocessor --> scaler processor
     output  logic               is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
+
+    // Output from vector processor lsu --> memory
+    output  logic               is_loaded,          // It tells that data is loaded from the memory and ready to be written in register file
+    output  logic               ld_inst,            // tells that it is load insruction or store one
+  
+    //Inputs from main_memory -> vec_lsu
+    input   logic   [SEW-1:0]   mem2lsu_data,
+
+    // Output from  vec_lsu -> main_memory
+    output  logic   [`XLEN-1:0] lsu2mem_addr,
     
     // csr_regfile -> scalar_processor
     output  logic   [`XLEN-1:0] csr_out             // 
@@ -41,7 +53,8 @@ logic                mask_wr_en;         // This the enable signal for updating 
 logic   [1:0]        data_mux1_sel;      // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
 logic                data_mux2_sel;      // This the selsction of the mux to select between scaler2 , and vec_data2
 
-
+// vec_control_signals -> vec_lsu
+logic                stride_sel;         // tells that  it is a unit stride or the indexed
 
 
 
@@ -58,6 +71,16 @@ logic                data_mux2_sel;      // This the selsction of the mux to sel
         // Outputs from vector rocessor --> scaler processor
         .is_vec             (is_vec         ),
         
+        // Output from vector processor lsu --> memory
+        .is_loaded          (is_loaded      ),        
+
+        
+        //Inputs from main_memory -> vec_lsu
+        .mem2lsu_data       (mem2lsu_data   ),
+
+        // Output from  vec_lsu -> main_memory
+        .lsu2mem_addr       (lsu2mem_addr   ),
+
         // csr_regfile -> scalar_processor
         .csr_out            (csr_out        ),            
 
@@ -78,9 +101,13 @@ logic                data_mux2_sel;      // This the selsction of the mux to sel
         .mask_operation     (mask_operation ),
         .mask_wr_en         (mask_wr_en     ),
         .data_mux1_sel      (data_mux1_sel  ),
-        .data_mux2_sel      (data_mux2_sel  )
+        .data_mux2_sel      (data_mux2_sel  ),
 
+        // vec_control_signals -> vec_lsu
+        .stride_sel         (stride_sel     ),
+        .ld_inst            (ld_inst        ) 
 
+        
     );
 
 
@@ -106,7 +133,11 @@ logic                data_mux2_sel;      // This the selsction of the mux to sel
         .mask_operation     (mask_operation ),
         .mask_wr_en         (mask_wr_en     ),
         .data_mux1_sel      (data_mux1_sel  ),
-        .data_mux2_sel      (data_mux2_sel  )
+        .data_mux2_sel      (data_mux2_sel  ),
+
+        // vec_control_signals -> vec_lsu
+        .stride_sel         (stride_sel     ),
+        .ld_inst            (ld_inst        ) 
 
     );
 

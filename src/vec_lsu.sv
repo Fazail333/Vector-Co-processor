@@ -4,6 +4,7 @@ module vec_lsu #(
     VLMAX   = 16,   // Max. number of elements
     SEW     = 32,   // 32-bits per element
     LMUL    = 1,    // grouping
+    MAX_VLEN = 4096,
 
     DATAWIDTH = $clog2(SEW)
 ) (
@@ -29,7 +30,7 @@ module vec_lsu #(
     input logic [SEW-1:0]           mem2lsu_data,
 
     // vec_lsu  -> vec_register_file
-    output logic [(VLEN*LMUL)-1:0]  vd_data,         // destination vector data
+    output logic [MAX_VLEN-1:0]     vd_data,         // destination vector data
     output logic                    is_loaded        // after getting the total elements is_loaded must on
 );
 
@@ -65,7 +66,7 @@ end
 //assign vd_data = (is_loaded) ? loaded_data[] :  '0;
 always_comb begin
     if (is_loaded) begin
-        vd_data = { loaded_data[15], loaded_data[14], loaded_data[13], loaded_data[12],
+        vd_data = { '0,loaded_data[15], loaded_data[14], loaded_data[13], loaded_data[12],
                     loaded_data[11], loaded_data[10], loaded_data[09], loaded_data[08],
                     loaded_data[07], loaded_data[06], loaded_data[05], loaded_data[04],
                     loaded_data[03], loaded_data[02], loaded_data[01], loaded_data[00]};

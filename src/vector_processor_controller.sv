@@ -17,13 +17,17 @@ module vector_processor_controller (
     // vec_control_signals -> vec_csr
     output  logic                csrwr_en,
 
+  
     // Vec_control_signals -> vec_registerfile
     output  logic                vec_reg_wr_en,      // The enable signal to write in the vector register
     output  logic                mask_operation,     // This signal tell this instruction is going to perform mask register update
     output  logic                mask_wr_en,         // This the enable signal for updating the mask value
     output  logic   [1:0]        data_mux1_sel,      // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
-    output  logic                data_mux2_sel       // This the selsction of the mux to select between scaler2 , and vec_data2
+    output  logic                data_mux2_sel,      // This the selsction of the mux to select between scaler2 , and vec_data2
 
+    // vec_control_signals -> vec_lsu
+    output  logic                stride_sel,         // tells that  it is a unit stride or the indexed
+    output  logic                ld_inst             // tells that it is load insruction or store one
 );
 
 v_opcode_e      vopcode;
@@ -48,7 +52,9 @@ always_comb begin
     vl_sel          = '0;
     vtype_sel       = '0;
     data_mux1_sel   = 2'b00;
-    data_mux2_sel   = 1'b0;  
+    data_mux2_sel   = 1'b0;
+    stride_sel      = 1'b0;
+    ld_inst         = 1'b0;  
     case (vopcode)
     V_ARITH: begin
         case (vfunc3)
@@ -126,9 +132,12 @@ always_comb begin
         mask_wr_en      = 0;
         data_mux1_sel   = 2'b01;
         data_mux2_sel   = 1'b1;
+        stride_sel      = 1'b1;
+        ld_inst         = 1'b1;
         
         case (mop)
             2'b00: begin
+                stride_sel      = 1;        // unit stride
                 vtype_sel       = 1;        // 1 or 0 don't care
                 lumop_sel       = 1; 
                 data_mux1_sel   = 2'b01;    // scaler1
@@ -164,7 +173,10 @@ always_comb begin
                 mask_operation  = 0;
                 mask_wr_en      = 0;
                 data_mux1_sel   = 2'b01;   
-                data_mux2_sel   = 1'b1;    
+                data_mux2_sel   = 1'b1;
+                stride_sel      = 1'b1;
+                ld_inst         = 1'b1;
+    
             end
         endcase
     end
@@ -179,7 +191,10 @@ always_comb begin
         mask_operation  = 0;
         mask_wr_en      = 0;
         data_mux1_sel   = 2'b00;   
-        data_mux2_sel   = 1'b0;    
+        data_mux2_sel   = 1'b0;
+        stride_sel      = 1'b0;
+        ld_inst         = 1'b0;
+    
     end
     endcase    
 end
