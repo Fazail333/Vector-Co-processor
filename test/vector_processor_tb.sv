@@ -10,6 +10,7 @@ module vector_processor_tb ();
 
 // Depth of the instruction memory 
 parameter  depth = 512;
+parameter   SEW  = 32;
 
 logic   clk,reset;
         
@@ -21,6 +22,10 @@ logic   [`XLEN-1:0] rs2_data;           // The scaler input from the scaler proc
 // Outputs from vector rocessor --> scaler processor
 logic               is_vec;             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
         
+// Output from vector processor lsu --> memory
+logic               is_loaded;          // It tells that data is loaded from the memory and ready to be written in register file
+logic               ld_inst;            // tells that it is load insruction or store one
+  
 // csr_regfile -> scalar_processor
 logic   [`XLEN-1:0] csr_out;            
 
@@ -28,6 +33,12 @@ logic   [`XLEN-1:0] csr_out;
 logic   [4:0]       rs1_addr;
 logic   [4:0]       rs2_addr;
 
+ //Inputs from main_memory -> vec_lsu
+logic   [SEW-1:0]   mem2lsu_data;
+
+    // Output from  vec_lsu -> main_memory
+logic   [`XLEN-1:0] lsu2mem_addr;
+   
 // Register file to hold scalar register values (can be initialized as needed)
 logic [`XLEN-1:0] scalar_regfile [31:0];
 
@@ -35,7 +46,7 @@ logic [`XLEN-1:0] scalar_regfile [31:0];
 logic [`XLEN-1:0] inst_mem[depth-1:0];
 
 //  Dummy Memory for testing
-logic [`XLEN-1:0]dummy_mem[depth-1:0];
+logic [7:0]dummy_mem[depth-1:0];
 
 
 
@@ -52,7 +63,17 @@ logic [`XLEN-1:0]dummy_mem[depth-1:0];
 
         // Outputs from vector rocessor --> scaler processor
         .is_vec         (is_vec     ),
+
+        // Output from vector processor lsu --> memory
+        .is_loaded      (is_loaded  ),        
+        .ld_inst        (ld_inst    ), 
         
+        //Inputs from main_memory -> vec_lsu
+        .mem2lsu_data   (mem2lsu_data),
+
+        // Output from  vec_lsu -> main_memory
+        .lsu2mem_addr   (lsu2mem_addr),
+
         // csr_regfile -> scalar_processor
         .csr_out        (csr_out    )
 
@@ -84,12 +105,12 @@ logic [`XLEN-1:0]dummy_mem[depth-1:0];
         dummy_mem_reg_init();
 
         @(posedge clk);
-        
-        for (int z = 0 ; z < depth  ; z++ ) begin
-            instruction_fetch(z);
-	    @(posedge clk);
-        end
-
+        fork
+            
+            instruction_issue();
+            memory_data_fetch();
+        join
+       
 
     end
 
@@ -126,7 +147,8 @@ logic [`XLEN-1:0]dummy_mem[depth-1:0];
                 scalar_regfile[j] = 'h0;
             end
         end
-    endtask 
+    endtask
+
 
 
     // Instruction Memory
@@ -143,14 +165,26 @@ logic [`XLEN-1:0]dummy_mem[depth-1:0];
 
     endtask
 
-
-  /*  task  memory_data_fetch( input logic [`XLEN-1:0]addr , output logic [`XLEN-1:0]data );
-        
-        always_ff @( posedge clk or negedge reset ) begin 
-            
-            
+    // It will issue the instruction
+    task  instruction_issue();
+        for (int z = 0 ; z < depth  ; z++ ) begin
+            instruction_fetch(z);
+	        @(posedge clk);
         end
     endtask 
-*/
+
+    task memory_data_fetch();
+        if (ld_inst) begin
+            // Keep ld_inst high until is_loaded signal is asserted
+            while (!is_loaded) begin
+                mem2lsu_data = {dummy_mem[lsu2mem_addr + 3], dummy_mem[lsu2mem_addr + 2], 
+                                dummy_mem[lsu2mem_addr + 1], dummy_mem[lsu2mem_addr]};
+                @(posedge clk);
+                ld_inst <= 1;  // Keep ld_inst asserted until is_loaded is high
+            end
+            ld_inst <= 0;  // Deassert ld_inst once load is complete
+        end
+    endtask
+
 
 endmodule
