@@ -1,9 +1,10 @@
 module vec_lsu #(
-    XLEN    = 32,   // scalar processor width
-    VLEN    = 512,  // 512-bits in a vector register
-    VLMAX   = 16,   // Max. number of elements
-    SEW     = 32,   // 32-bits per element
-    LMUL    = 1,    // grouping
+    XLEN    = 32,       // scalar processor width
+    VLEN    = 512,      // 512-bits in a vector register
+    VLMAX   = 16,       // Max. number of elements
+    SEW     = 32,       // 32-bits per element
+    LMUL    = 1,        // grouping
+    MAX_VLEN = 4096,
 
     DATAWIDTH = $clog2(SEW)
 ) (
@@ -29,7 +30,7 @@ module vec_lsu #(
     input logic [SEW-1:0]           mem2lsu_data,
 
     // vec_lsu  -> vec_register_file
-    output logic [(VLEN*LMUL)-1:0]  vd_data,         // destination vector data
+    output logic [MAX_VLEN-1:0]     vd_data,         // destination vector data
     output logic                    is_loaded        // after getting the total elements is_loaded must on
 );
 
@@ -39,9 +40,10 @@ logic [XLEN-1:0]                element_strt;
 
 logic [((VLEN/SEW)*LMUL)-1:0]   count_el;           // count elements
 logic [((VLEN/SEW)*LMUL)-1:0]   add_el;             // add 1 in count elements
-//logic                           is_loaded;          // after getting the total elements is_loaded must on
 logic                           count_en;           // start counting the elements when load instruction
 logic                           data_en;
+logic                           stride_en;
+logic [XLEN-1:0]                stride_value;
 
 logic [XLEN-1:0]                loaded_data [0:VLMAX-1];
 
@@ -65,7 +67,7 @@ end
 //assign vd_data = (is_loaded) ? loaded_data[] :  '0;
 always_comb begin
     if (is_loaded) begin
-        vd_data = { loaded_data[15], loaded_data[14], loaded_data[13], loaded_data[12],
+        vd_data = { '0,loaded_data[15], loaded_data[14], loaded_data[13], loaded_data[12],
                     loaded_data[11], loaded_data[10], loaded_data[09], loaded_data[08],
                     loaded_data[07], loaded_data[06], loaded_data[05], loaded_data[04],
                     loaded_data[03], loaded_data[02], loaded_data[01], loaded_data[00]};
@@ -79,11 +81,21 @@ end
 // mux for unit/constant strided
 assign stride_mux = (stride_sel) ? (SEW/8) : rs2_data;
 
+// stride register retain the value of stride
+always_ff @(posedge clk or negedge n_rst) begin
+    if (!n_rst)
+        stride_value <= '0;
+    else if (stride_en)
+        stride_value <= stride_mux;
+    else 
+        stride_value <= stride_value;
+end
+
 // first element address 
 assign element_strt = stride_mux + rs1_data;
 
 // adder for making the memory addresses
-assign stride_add = stride_mux + lsu2mem_addr;
+assign stride_add = stride_value + lsu2mem_addr;
 
 // register for memory addresses
 always_ff @(posedge clk or negedge n_rst) begin
@@ -104,11 +116,11 @@ always_ff @(posedge clk or negedge n_rst) begin
     else 
         count_el <= '0;
 end
+
 // adder for elements count
 assign add_el = count_el + 1;
 // comparator to check that the elements are loaded
 assign is_loaded = (count_el == VLMAX) ? 1 : 0;
-//assign is_loaded = (count_el == (((VLEN/SEW)*LMUL)-1)) ? 1 : 0; 
 
 /*  Controller  */
 typedef enum logic {IDLE, LOAD} lsu_state_e;
@@ -141,26 +153,30 @@ always_comb begin
     case (c_state)
         IDLE: begin
             data_en  = 1'b0;
+            stride_en = 1'b1;
             if (ld_inst) begin 
-                count_en = 1'b1;
-            //    data_en  = 1'b0;
+                count_en  = 1'b1;
             end
             else         begin 
-                data_en  = 1'b0;
-            //    count_en = 1'b0;
+                count_en  = 1'b0;
             end 
         end
         LOAD: begin
             data_en = 1'b1;
+            stride_en = 1'b0;
             if (is_loaded)  begin 
-                count_en = 1'b0;
+                count_en  = 1'b0;
+                
             end
             else begin 
-                count_en = 1'b1;
+                count_en  = 1'b1;
             end
         end
         default: begin
-            count_en = 1'b0;
+            count_en  = 1'b0;
+            data_en   = 1'b0;
+            count_en  = 1'b0;
+            stride_en = 1'b0;
         end 
     endcase
 end
