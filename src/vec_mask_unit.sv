@@ -1,11 +1,9 @@
 `timescale 1ns / 1ps
 
-
 //////////////////////////////////////////////////////////////////////////////////
-// Company: Dept of EE, UET Lahore
+// Company: FINAL YEAR PROGECT (Dept of EE, U.E.T Lahore)
 // Engineer: Muhammad Bilal Matloob
-// 
-// Create Date: 09/26/2024 04:39:47 AM
+// Create Date: 09/26/2024
 // Design Name: Mask Unit
 // Module Name: vector_mask_unit
 // Project Name: RISC_V VPU (Vector Processing Unit) 
@@ -13,7 +11,11 @@
 
 
 // Mask Unit Main Module
+
 module vector_mask_unit(
+
+    ////////////////////////////////////// INPUT SIGNALS ////////////////////////////////////////
+
     // output data from lanes to be store at the destination, if correspoding bit is unmasked
     input logic [4095:0] lanes_data_out,
     
@@ -23,38 +25,40 @@ module vector_mask_unit(
     // mask operations for updating v0 (mask register)
     input logic [2:0] mask_op,
     
-    // either masking is enabled or not e.g. vm = v.instr[25]
+    // either masking is enabled or not e.g. vm = v.instr[25] = (1 or 0)?
     input logic mask_en,
     
-    // Signal to show whether to update mask register or not
+    // Signal to order whether to update mask register or not
     input logic mask_reg_en,
     
-    // tail agnostic
+    // tail agnostic bit
     input logic vta,
     
-    // mask agnostic
+    // mask agnostic bit
     input logic vma,
     
     // vector start index
-    input logic [8:0] vstart,
+    input logic [9:0] vstart,
     
     // number of elements in the (current) vector
-    input logic [8:0] vl,
+    input logic [9:0] vl,
     
     // single element width [8, 16, 32, 64]
-    input logic [5:0] sew,
+    input logic [6:0] sew,
     
     // Vector Mask Registers
     input logic [511:0] vs1,  // vs1.mask
     input logic [511:0] vs2,  // vs2.mask
     input logic [511:0] v0,
     
+    ////////////////////////////////////// OUTPUT SIGNALS ///////////////////////////////////////
+    
     // Mask Unit output
     output logic [4095:0] mask_unit_output,
 
     // Updated value of mask register
     output logic [511:0] mask_reg_updated 
-    );
+);
     
     comb_for_vsew_08 UUT01(
         .lanes_data_out(lanes_data_out),
@@ -187,15 +191,15 @@ endmodule
 //////////////////////////////////////////////////////////////////////////////////
 
 module sew_encoder (
-    input logic [5:0] sew,
+    input logic [6:0] sew,
     output logic [1:0] sew_sel
 );
     always_comb begin
         case (sew)
-            6'b000100: sew_sel = 2'b00;                    
-            6'b001000: sew_sel = 2'b01;                  
-            6'b010000: sew_sel = 2'b10;                    
-            6'b100000: sew_sel = 2'b11;                    
+            7'b0001000: sew_sel = 2'b00;                    
+            7'b0010000: sew_sel = 2'b01;                  
+            7'b0100000: sew_sel = 2'b10;                    
+            7'b1000000: sew_sel = 2'b11;                    
         endcase
     end
 endmodule
@@ -217,34 +221,61 @@ module comb_for_vsew_08 #(parameter SEW = 8, parameter VAR = 512) (
 
     generate
         genvar i;
-        for (i = 0; i < VAR; i++) begin : scale_instance
-            always_comb begin
-                // Initialize to zero or another default value
-                mask_output_01[(SEW-1) + (i * SEW): i * SEW] = '0;
-
-                // Only generate assignment if prestart_check[i] is 1
-                if (prestart_check[i] == 1'b1) begin
-                    mask_output_01[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b1)) begin
-                    mask_output_01[(SEW-1) + (i * SEW): i * SEW] = lanes_data_out[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b0)) begin
-                    mask_output_01[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b1)) begin
-                    mask_output_01[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b0)) begin
-                    mask_output_01[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b1)) begin 
-                    mask_output_01[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end
-            end
+        for (i = 0; i < VAR; i++) begin
+            mux_logics_for_sew_08 #(.SEW(SEW)) MUX_UNIT(
+                .lanes_data_out( lanes_data_out [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .destination_data( destination_data [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .mask_reg( mask_reg [i] ),        
+                .prestart_check( prestart_check [i] ),  
+                .body_check( body_check [i] ),      
+                .tail_check( tail_check [i] ),      
+                .vta(vta),            
+                .vma(vma),            
+                .mux_sew_08_out( mask_output_01 [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ) 
+            );
         end
     endgenerate
 
 endmodule
 
+// mini block used for instantiation in 'comb_for_vsew_08'
+
+module mux_logics_for_sew_08 #(parameter SEW = 8) (
+
+    input logic [SEW-1:0] lanes_data_out,
+    input logic [SEW-1:0] destination_data,
+    input logic mask_reg,        // mask register bit corresponding to each element
+    input logic prestart_check,  // prestart(x) = (0 <= x < vstart) 
+    input logic body_check,      // body(x) = (vstart <= x < vl)
+    input logic tail_check,      // tail(x) = (vl <= x < max(VLMAX, VLEN/SEW))
+    input logic vta,             // tail_agnostic bit
+    input logic vma,             // mask_agnostic bit
+    output logic [SEW-1:0] mux_sew_08_out 
+);
+
+    always_comb begin
+        if (prestart_check == 1'b1) begin
+            mux_sew_08_out = destination_data;
+        end else if ((body_check == 1'b1) && (mask_reg == 1'b0)) begin
+            mux_sew_08_out = lanes_data_out;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b0)) begin
+            mux_sew_08_out = destination_data;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b1)) begin
+            mux_sew_08_out = '1;  // All bits set to 1
+        end else if ((tail_check == 1'b1) && (vta == 1'b0)) begin
+            mux_sew_08_out = destination_data;
+        end else if ((tail_check == 1'b1) && (vta == 1'b1)) begin 
+            mux_sew_08_out = '1;  // All bits set to 1
+        end else begin
+            mux_sew_08_out = destination_data;  // Default case
+        end
+    end
+
+endmodule
+
 //////////////////////////////////////////////////////////////////////////////////
 
-module comb_for_vsew_16 #(parameter SEW =16, parameter VAR = 256) (
+module comb_for_vsew_16 #(parameter SEW = 16, parameter VAR = 256) (
     input logic [4095:0] lanes_data_out,
     input logic [4095:0] destination_data,
     input logic [511:0] mask_reg,        // mask register value corresponding to each element
@@ -259,28 +290,55 @@ module comb_for_vsew_16 #(parameter SEW =16, parameter VAR = 256) (
 
     generate
         genvar i;
-        for (i = 0; i < VAR; i++) begin : scale_instance
-            always_comb begin
-                // Initialize to zero or another default value
-                mask_output_02[(SEW-1) + (i * SEW): i * SEW] = '0;
-
-                // Only generate assignment if prestart_check[i] is 1
-                if (prestart_check[i] == 1'b1) begin
-                    mask_output_02[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b1)) begin
-                    mask_output_02[(SEW-1) + (i * SEW): i * SEW] = lanes_data_out[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b0)) begin
-                    mask_output_02[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b1)) begin
-                    mask_output_02[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b0)) begin
-                    mask_output_02[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b1)) begin 
-                    mask_output_02[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end
-            end
+        for (i = 0; i < VAR; i++) begin
+            mux_logics_for_sew_16 MUX_UNIT(
+                .lanes_data_out( lanes_data_out [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .destination_data( destination_data [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .mask_reg( mask_reg [i] ),        
+                .prestart_check( prestart_check [i] ),  
+                .body_check( body_check [i] ),      
+                .tail_check( tail_check [i] ),      
+                .vta(vta),            
+                .vma(vma),            
+                .mux_sew_16_out( mask_output_02 [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ) 
+            );
         end
     endgenerate
+
+endmodule
+
+// mini block used for instantiation in 'comb_for_vsew_16'
+
+module mux_logics_for_sew_16 #(parameter SEW = 16) (
+
+    input logic [SEW-1:0] lanes_data_out,
+    input logic [SEW-1:0] destination_data,
+    input logic mask_reg,        // mask register bit corresponding to each element
+    input logic prestart_check,  // prestart(x) = (0 <= x < vstart) 
+    input logic body_check,      // body(x) = (vstart <= x < vl)
+    input logic tail_check,      // tail(x) = (vl <= x < max(VLMAX, VLEN/SEW))
+    input logic vta,             // tail_agnostic bit
+    input logic vma,             // mask_agnostic bit
+    output logic [SEW-1:0] mux_sew_16_out 
+);
+
+    always_comb begin
+        if (prestart_check == 1'b1) begin
+            mux_sew_16_out = destination_data;
+        end else if ((body_check == 1'b1) && (mask_reg == 1'b0)) begin
+            mux_sew_16_out = lanes_data_out;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b0)) begin
+            mux_sew_16_out = destination_data;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b1)) begin
+            mux_sew_16_out = '1;  // All bits set to 1
+        end else if ((tail_check == 1'b1) && (vta == 1'b0)) begin
+            mux_sew_16_out = destination_data;
+        end else if ((tail_check == 1'b1) && (vta == 1'b1)) begin 
+            mux_sew_16_out = '1;  // All bits set to 1
+        end else begin
+            mux_sew_16_out = destination_data;  // Default case
+        end
+    end
 
 endmodule
 
@@ -301,28 +359,55 @@ module comb_for_vsew_32 #(parameter SEW = 32, parameter VAR = 128) (
 
     generate
         genvar i;
-        for (i = 0; i < VAR; i++) begin : scale_instance
-            always_comb begin
-                // Initialize to zero or another default value
-                mask_output_03[(SEW-1) + (i * SEW): i * SEW] = '0;
-
-                // Only generate assignment if prestart_check[i] is 1
-                if (prestart_check[i] == 1'b1) begin
-                    mask_output_03[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b1)) begin
-                    mask_output_03[(SEW-1) + (i * SEW): i * SEW] = lanes_data_out[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b0)) begin
-                    mask_output_03[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b1)) begin
-                    mask_output_03[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b0)) begin
-                    mask_output_03[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b1)) begin 
-                    mask_output_03[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end
-            end
+        for (i = 0; i < VAR; i++) begin
+            mux_logics_for_sew_32 MUX_UNIT(
+                .lanes_data_out( lanes_data_out [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .destination_data( destination_data [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .mask_reg( mask_reg [i] ),        
+                .prestart_check( prestart_check [i] ),  
+                .body_check( body_check [i] ),      
+                .tail_check( tail_check [i] ),      
+                .vta(vta),            
+                .vma(vma),            
+                .mux_sew_32_out( mask_output_03 [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ) 
+            );
         end
     endgenerate
+
+endmodule
+
+// mini block used for instantiation in 'comb_for_vsew_32'
+
+module mux_logics_for_sew_32 #(parameter SEW = 32) (
+
+    input logic [SEW-1:0] lanes_data_out,
+    input logic [SEW-1:0] destination_data,
+    input logic mask_reg,        // mask register bit corresponding to each element
+    input logic prestart_check,  // prestart(x) = (0 <= x < vstart) 
+    input logic body_check,      // body(x) = (vstart <= x < vl)
+    input logic tail_check,      // tail(x) = (vl <= x < max(VLMAX, VLEN/SEW))
+    input logic vta,             // tail_agnostic bit
+    input logic vma,             // mask_agnostic bit
+    output logic [SEW-1:0] mux_sew_32_out 
+);
+
+    always_comb begin
+        if (prestart_check == 1'b1) begin
+            mux_sew_32_out = destination_data;
+        end else if ((body_check == 1'b1) && (mask_reg == 1'b0)) begin
+            mux_sew_32_out = lanes_data_out;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b0)) begin
+            mux_sew_32_out = destination_data;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b1)) begin
+            mux_sew_32_out = '1;  // All bits set to 1
+        end else if ((tail_check == 1'b1) && (vta == 1'b0)) begin
+            mux_sew_32_out = destination_data;
+        end else if ((tail_check == 1'b1) && (vta == 1'b1)) begin 
+            mux_sew_32_out = '1;  // All bits set to 1
+        end else begin
+            mux_sew_32_out = destination_data;  // Default case
+        end
+    end
 
 endmodule
 
@@ -343,28 +428,55 @@ module comb_for_vsew_64 #(parameter SEW = 64, parameter VAR = 64) (
 
     generate
         genvar i;
-        for (i = 0; i < VAR; i++) begin : scale_instance
-            always_comb begin
-                // Initialize to zero or another default value
-                mask_output_04[(SEW-1) + (i * SEW): i * SEW] = '0;
-
-                // Only generate assignment if prestart_check[i] is 1
-                if (prestart_check[i] == 1'b1) begin
-                    mask_output_04[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b1)) begin
-                    mask_output_04[(SEW-1) + (i * SEW): i * SEW] = lanes_data_out[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b0)) begin
-                    mask_output_04[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((body_check[i] == 1'b1) && (mask_reg[i] == 1'b0) && (vma == 1'b1)) begin
-                    mask_output_04[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b0)) begin
-                    mask_output_04[(SEW-1) + (i * SEW): i * SEW] = destination_data[(SEW-1) + (i * SEW): i * SEW];
-                end else if ((tail_check[i] == 1'b1) && (vta == 1'b1)) begin 
-                    mask_output_04[(SEW-1) + (i * SEW): i * SEW] = {SEW{1'b1}};
-                end
-            end
+        for (i = 0; i < VAR; i++) begin
+            mux_logics_for_sew_64 MUX_UNIT(
+                .lanes_data_out( lanes_data_out [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .destination_data( destination_data [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ),
+                .mask_reg( mask_reg [i] ),        
+                .prestart_check( prestart_check [i] ),  
+                .body_check( body_check [i] ),      
+                .tail_check( tail_check [i] ),      
+                .vta(vta),            
+                .vma(vma),            
+                .mux_sew_64_out( mask_output_04 [ ( (SEW - 1) + (i * SEW) ) : (i * SEW) ] ) 
+            );
         end
     endgenerate
+
+endmodule
+
+// mini block used for instantiation in 'comb_for_vsew_64'
+
+module mux_logics_for_sew_64 #(parameter SEW = 64) (
+
+    input logic [SEW-1:0] lanes_data_out,
+    input logic [SEW-1:0] destination_data,
+    input logic mask_reg,        // mask register bit corresponding to each element
+    input logic prestart_check,  // prestart(x) = (0 <= x < vstart) 
+    input logic body_check,      // body(x) = (vstart <= x < vl)
+    input logic tail_check,      // tail(x) = (vl <= x < max(VLMAX, VLEN/SEW))
+    input logic vta,             // tail_agnostic bit
+    input logic vma,             // mask_agnostic bit
+    output logic [SEW-1:0] mux_sew_64_out 
+);
+
+    always_comb begin
+        if (prestart_check == 1'b1) begin
+            mux_sew_64_out = destination_data;
+        end else if ((body_check == 1'b1) && (mask_reg == 1'b0)) begin
+            mux_sew_64_out = lanes_data_out;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b0)) begin
+            mux_sew_64_out = destination_data;
+        end else if (((body_check & mask_reg) == 1'b1) && (vma == 1'b1)) begin
+            mux_sew_64_out = '1;  // All bits set to 1
+        end else if ((tail_check == 1'b1) && (vta == 1'b0)) begin
+            mux_sew_64_out = destination_data;
+        end else if ((tail_check == 1'b1) && (vta == 1'b1)) begin 
+            mux_sew_64_out = '1;  // All bits set to 1
+        end else begin
+            mux_sew_64_out = destination_data;  // Default case
+        end
+    end
 
 endmodule
 
@@ -416,8 +528,8 @@ endmodule
 //////////////////////////////////////////////////////////////////////////////////
 
 module check_generator (
-    input logic [8:0] vl,
-    input logic [8:0] vstart,
+    input logic [9:0] vl,
+    input logic [9:0] vstart,
     input logic [511:0] v0_updated,
     
     output logic [511:0] mask_reg,        // mask register value corresponding to each element
