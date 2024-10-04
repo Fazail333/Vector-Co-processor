@@ -105,6 +105,7 @@ task directed_test (
     ld_inst <= load;
     @(posedge clk);
     ld_inst <= '0;
+    stride_sel <= '0;
     while (!is_loaded) begin
         mem2lsu_data = {dumpy_mem [lsu2mem_addr], dumpy_mem [lsu2mem_addr+1], 
                         dumpy_mem [lsu2mem_addr+2], dumpy_mem [lsu2mem_addr+3]}; 
