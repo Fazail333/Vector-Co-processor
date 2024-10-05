@@ -18,8 +18,9 @@ module vec_csr_regfile (
     input logic                 csrwr_en,
 
     // vec_csr_regs ->
-    output logic [3:0]          vlmul,
-    output logic [5:0]          sew,
+    output logic [4:0]          vlmul,
+    output logic [6:0]          sew,
+    output logic [9:0]          vlmax,
     output logic                tail_agnostic,    // vector tail agnostic
     output logic                mask_agnostic,    // vector mask agnostic
 
@@ -105,8 +106,60 @@ always_comb begin
         EW16:   sew = 16;
         EW32:   sew = 32;
         EW64:   sew = 64;
-        EWRSVD: sew = '0;
+        EWRSVD: sew = 32;
         default: sew = 32;
+    endcase
+end
+
+// vlmax = VLEN/SEW decoding
+always_comb begin
+    case (vlmul_e'(csr_vtype_q.vlmul))
+    LMUL_1: begin
+        case(vew_e'(csr_vtype_q.vsew))
+        EW8:    vlmax = 64;
+        EW16:   vlmax = 32;
+        EW32:   vlmax = 16;
+        EW64:   vlmax = 8;
+        EWRSVD: vlmax = 16;
+        default: vlmax = 16;
+    endcase
+    end
+    LMUL_2: begin
+        case(vew_e'(csr_vtype_q.vsew))
+        EW8:    vlmax = 128;
+        EW16:   vlmax = 64;
+        EW32:   vlmax = 32;
+        EW64:   vlmax = 16;
+        EWRSVD: vlmax = 32;
+        default: vlmax = 32;
+    endcase
+    end
+    LMUL_4: begin
+        case(vew_e'(csr_vtype_q.vsew))
+        EW8:    vlmax = 256;
+        EW16:   vlmax = 128;
+        EW32:   vlmax = 64;
+        EW64:   vlmax = 32;
+        EWRSVD: vlmax = 64;
+        default: vlmax = 64;
+    endcase
+    end
+    LMUL_8: begin
+        case(vew_e'(csr_vtype_q.vsew))
+        EW8:    vlmax = 512;
+        EW16:   vlmax = 256;
+        EW32:   vlmax = 128;
+        EW64:   vlmax = 64;
+        EWRSVD: vlmax = 128;
+        default: vlmax = 128;
+    endcase
+    end
+    LMUL_RSVD: begin
+        vlmax = 16;
+    end
+    default: begin
+        vlmax =16;
+    end
     endcase
 end
 
