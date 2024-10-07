@@ -1,4 +1,4 @@
-// Author       : Zawaher Bin Asim , UET Lahore
+// Author       : Zawaher Bin Asim , UET Lahore  <zawaherbinasim.333@gmail.com>
 // Date         : 23 Sep 2024
 // Description  : This file contains the  datapath of the vector_processor where different units are connnected together 
 
@@ -29,8 +29,10 @@ module vector_processor_datapth #(
     output  logic               is_loaded,         // It tells that data is loaded from the memory and ready to be written in register file
     
     // csr_regfile -> scalar_processor
-    output  logic   [`XLEN-1:0] csr_out,            // 
+    output  logic   [`XLEN-1:0] csr_out,            
 
+    // datapth  --> scaler_processor 
+    output  logic               vec_pro_ack,      // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
 
 
     // Inputs from the controller --> datapath
@@ -58,6 +60,7 @@ module vector_processor_datapth #(
     input   logic                ld_inst             // tells that it is load insruction or store one
 
 );
+
 
 // Read and Write address from Decode --> Vector Register file 
 logic   [`XLEN-1:0] vec_read_addr_1  , vec_read_addr_2 , vec_write_addr;
@@ -93,12 +96,16 @@ logic   [`MAX_VLEN-1:0] scaler1_extended ,scaler2_extended;
 logic   [`MAX_VLEN-1:0] vec_wr_data;
 
 // vec_csr_regs ->
-logic   [3:0]                   vlmul;                  // Gives the value of the lmul that is to used  in the procesor
-logic   [5:0]                   sew;                    // Gives the standard element width 
+logic   [4:0]                   vlmul;                  // Gives the value of the lmul that is to used  in the procesor
+logic   [6:0]                   sew;                    // Gives the standard element width 
+logic   [9:0]                   vlmax;                  // the maximum number of elements vector will contain based on the lmul and sew and vlen
 logic                           tail_agnostic;          // vector tail agnostic
 logic                           mask_agnostic;          // vector mask agnostic
 logic   [`XLEN-1:0]             vec_length;             // Gives the length of the vector onwhich maskng operation is to performed
 logic   [`XLEN-1:0]             start_element;          // Gives the start elemnet of the vector from where the masking is to be started
+
+ // Output from csr_reg--> datapath (done signal)
+ logic                          csr_done;               // This signal tells that csr instruction has been implemented successfully
 
 // vec_registerfile --> next moduels and data selection muxes
 logic   [DATA_WIDTH-1:0]        vec_data_1, vec_data_2; // The read data from the vector register file
@@ -112,6 +119,8 @@ logic   [`MAX_VLEN-1:0]         data_mux1_out;          // selection between the
 logic   [`MAX_VLEN-1:0]         data_mux2_out;          // selection between the vec_reg_data_2 , scaler2
 
 
+
+assign vec_pro_ack = is_loaded || csr_done;
 
              //////////////////////
             //      DECODE      //
@@ -176,11 +185,14 @@ logic   [`MAX_VLEN-1:0]         data_mux2_out;          // selection between the
         // vec_csr_regs ->
         .vlmul                  (vlmul          ),
         .sew                    (sew            ),
+        .vlmax                  (vlmax          ),
         .tail_agnostic          (tail_agnostic  ), 
         .mask_agnostic          (mask_agnostic  ), 
 
         .vec_length             (vec_length     ),
-        .start_element          (start_element  )
+        .start_element          (start_element  ),
+
+        .csr_done               (csr_done       )
     );
 
 
