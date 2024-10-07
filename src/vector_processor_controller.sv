@@ -5,7 +5,11 @@
 module vector_processor_controller (
 
     // scalar_processor -> vector_extension
-    input logic [`XLEN-1:0]      vec_inst,
+    input logic [`XLEN-1:0]     vec_inst,
+
+    // controller --> scaler_processor   //TODO
+    output  logic               vec_pro_ready,      // tells that vector processor is ready to take the instruction
+
 
     // vec_control_signals -> vec_decode
     output  logic               vl_sel,             // selection for rs1_data or uimm

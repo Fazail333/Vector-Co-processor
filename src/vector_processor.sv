@@ -1,4 +1,4 @@
-// Author       : Zawaher Bin Asim , UET Lahore
+// Author       : Zawaher Bin Asim , UET Lahore  <zawaherbinasim.333@gmail.com>
 // Date         : 1 Oct 2024
 // Description  : This file contains the wrapper of the vector_processor where datapath and controller  are connnected together 
 
@@ -29,8 +29,13 @@ module vector_processor#(
     output  logic   [`XLEN-1:0] lsu2mem_addr,
     
     // csr_regfile -> scalar_processor
-    output  logic   [`XLEN-1:0] csr_out             // 
+    output  logic   [`XLEN-1:0] csr_out,             // 
 
+    // datapth  --> scaler_processor 
+    output  logic               vec_pro_ack,         // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
+
+    // controller --> scaler_processor
+    output  logic               vec_pro_ready        // tells that vector processor is ready to take the instruction
 
 );
 
@@ -82,7 +87,10 @@ logic                stride_sel;         // tells that  it is a unit stride or t
         .lsu2mem_addr       (lsu2mem_addr   ),
 
         // csr_regfile -> scalar_processor
-        .csr_out            (csr_out        ),            
+        .csr_out            (csr_out        ),
+
+        // datapth  --> scaler_processor
+        .vec_pro_ack        (vec_pro_ack    ),            
 
         // Inputs from the controller --> datapath
     
@@ -115,6 +123,10 @@ logic                stride_sel;         // tells that  it is a unit stride or t
         
         // scalar_processor -> vector_extension
         .vec_inst           (instruction    ),
+
+        // controller --> scaler_processor
+        .vec_pro_ready      (vec_pro_ready  ),
+
 
         // Output from  controller --> datapath
 
