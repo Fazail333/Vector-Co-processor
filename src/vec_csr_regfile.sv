@@ -1,31 +1,34 @@
 `include "../define/vec_de_csr_defs.svh"
 
 module vec_csr_regfile (
-    input logic                 clk,
-    input logic                 n_rst,
+    input   logic                    clk,
+    input   logic                    n_rst,
 
     // scalar_processor -> csr_regfile
-    input logic [`XLEN-1:0]     inst,
+    input   logic   [`XLEN-1:0]      inst,
 
     // csr_regfile -> scalar_processor
-    output logic [`XLEN-1:0]    csr_out,
+    output  logic   [`XLEN-1:0]     csr_out,
 
     // vec_decode -> vec_csr_regs
-    input logic [`XLEN-1:0]     scalar2,    // vtype-csr
-    input logic [`XLEN-1:0]     scalar1,    // vlen-csr / vstart-csr
+    input   logic   [`XLEN-1:0]     scalar2,    // vtype-csr
+    input   logic   [`XLEN-1:0]     scalar1,    // vlen-csr / vstart-csr
 
     // vec_control_signals -> vec_csr_regs
-    input logic                 csrwr_en,
+    input   logic                   csrwr_en,
 
     // vec_csr_regs ->
-    output logic [4:0]          vlmul,
-    output logic [6:0]          sew,
-    output logic [9:0]          vlmax,
-    output logic                tail_agnostic,    // vector tail agnostic
-    output logic                mask_agnostic,    // vector mask agnostic
+    output  logic   [4:0]           vlmul,
+    output  logic   [6:0]           sew,
+    output  logic   [9:0]           vlmax,
+    output  logic                   tail_agnostic,    // vector tail agnostic
+    output  logic                   mask_agnostic,    // vector mask agnostic
 
-    output logic [`XLEN-1:0]     vec_length,
-    output logic [`XLEN-1:0]     start_element
+    output  logic   [`XLEN-1:0]     vec_length,
+    output  logic   [`XLEN-1:0]     start_element
+
+    // Output from csr_reg--> datapath (done signal)
+    output  logic                   csr_done;           // This signal tells that csr instruction has been implemented successfully.       
 );
 
 csr_vtype_s         csr_vtype_q;
@@ -64,6 +67,7 @@ always_ff @(posedge clk, negedge n_rst) begin
         csr_vtype_q.vsew      <= '0;
         csr_vtype_q.vlmul     <= '0;
         csr_vl_q              <= '0;
+        csr_done              <= '0;
     end
     else if (csrwr_en) begin
         csr_vtype_q.ill   <= '0;
@@ -72,6 +76,8 @@ always_ff @(posedge clk, negedge n_rst) begin
         csr_vtype_q.vsew  <= scalar2[5:3];
         csr_vtype_q.vlmul <= scalar2[2:0];
         csr_vl_q          <= scalar1;
+        csr_done          <= 1'b1;
+
     end 
     else begin 
         csr_vtype_q <= csr_vtype_q;
