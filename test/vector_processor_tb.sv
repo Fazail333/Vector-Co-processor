@@ -1,9 +1,10 @@
-// Author       : Zawaher Bin Asim , UET Lahore
+// Author       : Zawaher Bin Asim , UET Lahore <zawaherbinasim.333@gmail.com>
 // Date         : 1 Oct 2024
 // Description  : This file contains the testbench of the vector_processor
 
 
 `include "../define/vector_processor_defs.svh"
+`include "../define/vec_de_csr_defs.svh"
 
 module vector_processor_tb ();
 
@@ -51,31 +52,58 @@ logic [7:0]dummy_mem[depth-1:0];
 
 
 
+/*************************************** VAL READY INTERFACE SIGNALS *********************************************************/
+
+logic               vec_pro_ack;            // signal that tells that successfully implemented the previous instruction 
+
+logic               vec_pro_ready;          // tells that vector processor is ready to take the instruction
+
+logic               scalar_pro_ready;       // tells that scaler processor is  ready to take output from the vector processor 
+
+logic               inst_valid;             // tells that instruction and data related to instruction is valid
+
+/*****************************************************************************************************************************/
+
+
+v_opcode_e      vopcode;
+v_func3_e       vfunc3;
+assign vopcode  = v_opcode_e'(instruction[6:0]);
+assign vfunc3   = v_func3_e'(instruction[14:12]);
+
+
     vector_processor VECTOR_PROCESSOR(
 
-        .clk            (clk        ),
-        .reset          (reset      ),
+        .clk            (clk            ),
+        .reset          (reset          ),
         
         // Inputs from the scaler processor  --> vector processor
-        .instruction    (instruction),
-        .rs1_data       (rs1_data   ),
-        .rs2_data       (rs2_data   ),
+        .instruction    (instruction    ),
+        .rs1_data       (rs1_data       ),
+        .rs2_data       (rs2_data       ),
 
         // Outputs from vector rocessor --> scaler processor
-        .is_vec         (is_vec     ),
+        .is_vec         (is_vec         ),
 
         // Output from vector processor lsu --> memory
-        .is_loaded      (is_loaded  ),        
-        .ld_inst        (ld_inst    ), 
+        .is_loaded      (is_loaded      ),        
+        .ld_inst        (ld_inst        ), 
         
         //Inputs from main_memory -> vec_lsu
-        .mem2lsu_data   (mem2lsu_data),
+        .mem2lsu_data   (mem2lsu_data   ),
 
         // Output from  vec_lsu -> main_memory
-        .lsu2mem_addr   (lsu2mem_addr),
+        .lsu2mem_addr   (lsu2mem_addr   ),
 
         // csr_regfile -> scalar_processor
-        .csr_out        (csr_out    )
+        .csr_out        (csr_out        ),
+
+        // datapth  --> scaler_processor
+        .vec_pro_ack    (vec_pro_ack    ),
+
+        // controller --> scaler_processor
+        .vec_pro_ready  (vec_pro_ready  )
+            
+
 
     );
 
@@ -100,11 +128,6 @@ logic [7:0]dummy_mem[depth-1:0];
         // Applying Reset
         reset_sequence();
         
-        @(posedge clk);
-
-        dummy_mem_reg_init();
-
-        @(posedge clk);
         fork
             
             instruction_issue();
@@ -120,7 +143,7 @@ logic [7:0]dummy_mem[depth-1:0];
     task  init_signals();
         rs1_data        = 'h0;
         rs2_data        = 'h0;
-       // instruction    	= 'h0;
+        instruction    	= 'h0;
 
     endtask 
 
@@ -132,8 +155,10 @@ logic [7:0]dummy_mem[depth-1:0];
             reset <= 0;
             @(posedge clk);
             reset <= 1;
+            @(posedge clk);
         end
     endtask
+    
 
     task  dummy_mem_reg_init();
         begin
@@ -167,11 +192,25 @@ logic [7:0]dummy_mem[depth-1:0];
 
     // It will issue the instruction
     task  instruction_issue();
+
         for (int z = 0 ; z < depth  ; z++ ) begin
+            
+            // Fetching the instruction + data
             instruction_fetch(z);
+
+            // Making the inst_valid 1
+            inst_valid <= 1'b1;
 	        @(posedge clk);
+
+            // Wait for the vector processor to be ready to take instruction
+            while (!vec_pro_ready)begin
+                @(posedge clk );
+            end
+            
+            inst_valid <= 1'b0;
         end
     endtask 
+
 
     task memory_data_fetch();
         if (ld_inst) begin
@@ -185,6 +224,135 @@ logic [7:0]dummy_mem[depth-1:0];
             ld_inst <= 0;  // Deassert ld_inst once load is complete
         end
     endtask
+
+
+    task driver();
+        // Initiating the dummy memories
+
+        dummy_mem_reg_init();
+        
+        @(posedge clk);
+        
+
+        fork
+            
+            instruction_issue();
+            memory_data_fetch();
+        join
+
+    endtask
+
+    task monitor ();
+        @(posedge clk);
+        // Tell that scaler_porcessor is ready  to take the response
+        scalar_pro_ready <= 1'b1;
+
+        @(posedge clk);
+        //Wait for the acknowledgement from the vector processor 
+        while (!vec_pro_ack)begin
+            @(posedge clk);
+        end 
+
+        // Lets monitor the output by looking into the registers whether the instruction has been successfully implemented or not
+
+        case (vopcode)
+        // vector arithematic and set instructions opcode = 0x57
+        V_ARITH: begin
+
+            case (vfunc3)
+                
+                // vector configuration instructions
+                CONF: begin
+                    case (inst_msb[1])
+                    // VSETVLI
+                        1'b0: begin
+                            rs1_o = rs1_data;
+                            rs2_o =  '0; 
+                            zimm  = vec_inst [30:20];
+                        end
+                        1'b1: begin
+                            case (inst_msb[0])
+                            // VSETIVLI
+                                1'b1: begin
+                                    rs1_o = '0;
+                                    rs2_o = '0; 
+                                    zimm  = {'0,vec_inst [29:20]};
+                                end
+                            // VSETVL
+                                1'b0: begin
+                                    rs1_o = rs1_data;
+                                    rs2_o = rs2_data;
+                                    zimm  =  '0;
+                                end
+                            default: begin
+                                rs1_o = '0;
+                                rs2_o = '0;
+                                zimm  = '0;
+                            end
+                            endcase
+                        end
+                        default: begin
+                            rs1_o = '0;
+                            rs2_o = '0;
+                            zimm  = '0;
+                        end
+                    endcase
+                end
+
+                default: begin
+                    vec_write_addr  = '0;
+                    vec_read_addr_1 = '0;
+                    vec_read_addr_2 = '0;
+                    vec_imm         = '0;
+                    vec_mask        = '0;
+                    rs2_o           = '0;
+                    rs1_o           = '0;
+                    zimm            = '0;
+                end
+            endcase
+        end
+
+        // Vector load instructions
+        V_LOAD: begin
+            is_vec          = 1;
+            vec_write_addr  = vd_addr;
+            vec_imm         = '0;
+            vec_mask        = vm;
+            mew             = vec_inst[28];
+            nf              = vec_inst[31:29];
+            width           = vec_inst[14:12];
+            case(mop)
+                2'b10: rs2_o = rs2_data;
+                // gather unordered
+                2'b01:vec_read_addr_2 = vs2_addr;
+                // gather ordered
+                2'b11:vec_read_addr_2 = vs2_addr;
+                default:vec_read_addr_2 = '0;
+            endcase
+        end
+
+        default: begin
+            is_vec          = '0;
+            vec_write_addr  = '0;
+            vec_read_addr_1 = '0;
+            vec_read_addr_2 = '0;
+            vec_imm         = '0;
+            vec_mask        = '0;
+            rs1_o           = '0;
+            rs2_o           = '0;
+            zimm            = '0;
+            mew             = '0;
+            nf              = '0;
+            width           = '0;
+        end
+    endcase
+
+
+
+
+
+    endtask
+
 
 
 endmodule
