@@ -25,10 +25,10 @@ module vec_csr_regfile (
     output  logic                   mask_agnostic,    // vector mask agnostic
 
     output  logic   [`XLEN-1:0]     vec_length,
-    output  logic   [`XLEN-1:0]     start_element
+    output  logic   [`XLEN-1:0]     start_element,
 
     // Output from csr_reg--> datapath (done signal)
-    output  logic                   csr_done;           // This signal tells that csr instruction has been implemented successfully.       
+    output  logic                   csr_done           // This signal tells that csr instruction has been implemented successfully.       
 );
 
 csr_vtype_s         csr_vtype_q;
@@ -82,6 +82,7 @@ always_ff @(posedge clk, negedge n_rst) begin
     else begin 
         csr_vtype_q <= csr_vtype_q;
         csr_vl_q    <= csr_vl_q;
+        csr_done    <= 1'b0;
     end   
 end
 
