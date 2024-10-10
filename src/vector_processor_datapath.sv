@@ -32,7 +32,7 @@ module vector_processor_datapth #(
     output  logic   [`XLEN-1:0] csr_out,            
 
     // datapth  --> scaler_processor 
-    output  logic               vec_pro_ack,      // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
+    output  logic               inst_done,      // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
 
 
     // Inputs from the controller --> datapath
@@ -113,6 +113,7 @@ logic   [DATA_WIDTH-1:0]        dst_vec_data;           // The data of the desti
 logic   [VECTOR_LENGTH-1:0]     vector_length;          // Width of the vector depending on LMUL
 logic                           wrong_addr;             // Signal to indicate an invalid address
 logic   [`VLEN-1:0]             v0_mask_data;           // The data of the mask register that is v0 in register file 
+logic                           data_written;           // tells that data is written to the register file
 
 // Outputs of the data selection muxes after register file
 logic   [`MAX_VLEN-1:0]         data_mux1_out;          // selection between the vec_reg_data_1 , vec_imm , scalar1
@@ -120,7 +121,7 @@ logic   [`MAX_VLEN-1:0]         data_mux2_out;          // selection between the
 
 
 
-assign vec_pro_ack = is_loaded || csr_done;
+assign inst_done = data_written || csr_done;
 
              //////////////////////
             //      DECODE      //
@@ -221,7 +222,8 @@ assign vec_pro_ack = is_loaded || csr_done;
         .dst_data       (dst_vec_data   ),
         .vector_length  (vector_length  ),
         .wrong_addr     (wrong_addr     ),
-        .v0_mask_data   (v0_mask_data   )  
+        .v0_mask_data   (v0_mask_data   ),
+        .data_written   (data_written   )  
     );
 
 
@@ -294,10 +296,10 @@ assign vec_pro_ack = is_loaded || csr_done;
 
     data_mux_2x1 #(.width(1'b1)) VLSU_DATA_MUX(
         
-        .operand1       (vec_reg_wr_en      ),
-        .operand2       (1'b0               ),
-        .sel            (is_loaded          ),
-        .mux_out        (vec_wr_en          )     
+        .operand1       (1'b0             ),
+        .operand2       (vec_reg_wr_en    ),
+        .sel            (is_loaded        ),
+        .mux_out        (vec_wr_en        )     
     
     );
     

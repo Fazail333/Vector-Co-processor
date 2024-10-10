@@ -11,31 +11,36 @@ module vector_processor#(
     input   logic   clk,reset,
     
     // Inputs from the scaler processor  --> vector processor
-    input   logic   [`XLEN-1:0] instruction,        // The instruction that is to be executed by the vector processor
-    input   logic   [`XLEN-1:0] rs1_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
-    input   logic   [`XLEN-1:0] rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
+    input   logic   [`XLEN-1:0] instruction,            // The instruction that is to be executed by the vector processor
+    input   logic   [`XLEN-1:0] rs1_data,               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
+    input   logic   [`XLEN-1:0] rs2_data,               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
+
+     // scaler_procssor  --> val_ready_controller
+    input   logic               inst_valid,             // tells data comming from the saler processor is valid
+    input   logic               scalar_pro_ready,       // tells that scaler processor is ready to take output
+
 
     // Outputs from vector rocessor --> scaler processor
-    output  logic               is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
+    output  logic               is_vec,                 // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
 
     // Output from vector processor lsu --> memory
-    output  logic               is_loaded,          // It tells that data is loaded from the memory and ready to be written in register file
-    output  logic               ld_inst,            // tells that it is load insruction or store one
+    output  logic               is_loaded,              // It tells that data is loaded from the memory and ready to be written in register file
+    output  logic               ld_inst,                // tells that it is load insruction or store one
   
     //Inputs from main_memory -> vec_lsu
-    input   logic   [SEW-1:0]   mem2lsu_data,
+    input   logic   [SEW-1:0]   mem2lsu_data,           // data from the memory to lsu in case of load
 
     // Output from  vec_lsu -> main_memory
-    output  logic   [`XLEN-1:0] lsu2mem_addr,
+    output  logic   [`XLEN-1:0] lsu2mem_addr,           // address from lsu to memory in case of the load
     
     // csr_regfile -> scalar_processor
-    output  logic   [`XLEN-1:0] csr_out,             // 
+    output  logic   [`XLEN-1:0] csr_out,                // read data from the csr registers
 
-    // datapth  --> scaler_processor 
-    output  logic               vec_pro_ack,         // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
+    // valready_controller  --> scaler_processor 
+    output  logic               vec_pro_ack,            // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
 
-    // controller --> scaler_processor
-    output  logic               vec_pro_ready        // tells that vector processor is ready to take the instruction
+    // val_ready_controller --> scaler_processor
+    output  logic               vec_pro_ready           // tells that vector processor is ready to take the instruction
 
 );
 
@@ -61,6 +66,8 @@ logic                data_mux2_sel;      // This the selsction of the mux to sel
 // vec_control_signals -> vec_lsu
 logic                stride_sel;         // tells that  it is a unit stride or the indexed
 
+// datapath --> val_ready_controller
+logic                inst_done;
 
 
     vector_processor_datapth DATAPATH(
@@ -89,8 +96,8 @@ logic                stride_sel;         // tells that  it is a unit stride or t
         // csr_regfile -> scalar_processor
         .csr_out            (csr_out        ),
 
-        // datapth  --> scaler_processor
-        .vec_pro_ack        (vec_pro_ack    ),            
+        // datapth  --> val_ready_controller
+        .inst_done          (inst_done      ),            
 
         // Inputs from the controller --> datapath
     
@@ -124,10 +131,6 @@ logic                stride_sel;         // tells that  it is a unit stride or t
         // scalar_processor -> vector_extension
         .vec_inst           (instruction    ),
 
-        // controller --> scaler_processor
-        .vec_pro_ready      (vec_pro_ready  ),
-
-
         // Output from  controller --> datapath
 
         // vec_control_signals -> vec_decode
@@ -152,6 +155,24 @@ logic                stride_sel;         // tells that  it is a unit stride or t
         .ld_inst            (ld_inst        ) 
 
     );
+
+
+    val_ready_controller VAL_READY_INTERFACE(
+    
+    .clk                (clk                ),
+    .reset              (reset              ),
+
+    // scaler_procssor  --> val_ready_controller
+    .inst_valid         (inst_valid         ),             // tells data comming from the saler processor is valid
+    .scalar_pro_ready   (scalar_pro_ready   ),       // tells that scaler processor is ready to take output
+    
+    // val_ready_controller --> scaler_processor
+    .vec_pro_ready      (vec_pro_ready      ),          // tells that vector processor is ready to take the instruction
+    .vec_pro_ack        (vec_pro_ack        ),             // tells that the data comming from the vec_procssor is valid and done with the implementation of instruction 
+
+    // datapath -->   val_ready_controller 
+    .inst_done          (inst_done          )
+);
 
 
 endmodule
