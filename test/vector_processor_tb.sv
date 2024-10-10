@@ -25,8 +25,8 @@ logic               is_vec;             // This tells the instruction is a vecto
         
 // Output from vector processor lsu --> memory
 logic               is_loaded;          // It tells that data is loaded from the memory and ready to be written in register file
-logic               ld_inst;            // tells that it is load insruction or store one
-  
+logic               ld_inst;            // tells that it is load insruction or store one // scaler_procssor  --> val_ready_controller
+    
 // csr_regfile -> scalar_processor
 logic   [`XLEN-1:0] csr_out;            
 
@@ -73,35 +73,40 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
     vector_processor VECTOR_PROCESSOR(
 
-        .clk            (clk            ),
-        .reset          (reset          ),
+        .clk                (clk                ),
+        .reset              (reset              ),
         
         // Inputs from the scaler processor  --> vector processor
-        .instruction    (instruction    ),
-        .rs1_data       (rs1_data       ),
-        .rs2_data       (rs2_data       ),
+        .instruction        (instruction        ),
+        .rs1_data           (rs1_data           ),
+        .rs2_data           (rs2_data           ),
+
+        // scaler_procssor  --> val_ready_controller
+        .inst_valid         (inst_valid         ),             // tells data comming from the saler processor is valid
+        .scalar_pro_ready   (scalar_pro_ready   ),       // tells that scaler processor is ready to take output
+    
 
         // Outputs from vector rocessor --> scaler processor
-        .is_vec         (is_vec         ),
+        .is_vec             (is_vec             ),
 
         // Output from vector processor lsu --> memory
-        .is_loaded      (is_loaded      ),        
-        .ld_inst        (ld_inst        ), 
+        .is_loaded          (is_loaded          ),        
+        .ld_inst            (ld_inst            ), 
         
         //Inputs from main_memory -> vec_lsu
-        .mem2lsu_data   (mem2lsu_data   ),
+        .mem2lsu_data       (mem2lsu_data       ),
 
         // Output from  vec_lsu -> main_memory
-        .lsu2mem_addr   (lsu2mem_addr   ),
+        .lsu2mem_addr       (lsu2mem_addr       ),
 
         // csr_regfile -> scalar_processor
-        .csr_out        (csr_out        ),
+        .csr_out            (csr_out            ),
 
         // datapth  --> scaler_processor
-        .vec_pro_ack    (vec_pro_ack    ),
+        .vec_pro_ack        (vec_pro_ack        ),
 
         // controller --> scaler_processor
-        .vec_pro_ready  (vec_pro_ready  )
+        .vec_pro_ready      (vec_pro_ready      )
             
 
 
@@ -127,14 +132,25 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
         // Applying Reset
         reset_sequence();
-        
-        fork
-            
-            instruction_issue();
-            memory_data_fetch();
-        join
-       
 
+        // Initiating the dummy memories
+
+        dummy_mem_reg_init();
+        
+        @(posedge clk);
+        
+        for (int i = 0 ; i < depth ; i++)begin
+
+            fork
+                
+                driver(i);
+                memory_data_fetch();
+                monitor();
+
+            join
+        end
+
+        $finish;
     end
 
 
@@ -191,24 +207,23 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
     endtask
 
     // It will issue the instruction
-    task  instruction_issue();
+    task  instruction_issue(input int z);
 
-        for (int z = 0 ; z < depth  ; z++ ) begin
             
-            // Fetching the instruction + data
-            instruction_fetch(z);
+        // Fetching the instruction + data
+        instruction_fetch(z);
 
-            // Making the inst_valid 1
-            inst_valid <= 1'b1;
-	        @(posedge clk);
-
-            // Wait for the vector processor to be ready to take instruction
-            while (!vec_pro_ready)begin
-                @(posedge clk );
-            end
-            
-            inst_valid <= 1'b0;
+        // Making the inst_valid 1
+        inst_valid <= 1'b1;
+        @(posedge clk);
+        // Wait for the vector processor to be ready to take instruction
+        while (!vec_pro_ready)begin
+            @(posedge clk );
         end
+        
+        inst_valid <= 1'b0;
+        @(posedge clk);
+    
     endtask 
 
 
@@ -226,21 +241,12 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
     endtask
 
 
-    task driver();
-        // Initiating the dummy memories
-
-        dummy_mem_reg_init();
+    task driver(input int i );
         
-        @(posedge clk);
-        
-
-        fork
-            
-            instruction_issue();
-            memory_data_fetch();
-        join
-
+        instruction_issue(i);
+       
     endtask
+
 
     task monitor ();
         @(posedge clk);
@@ -253,7 +259,9 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
             @(posedge clk);
         end 
 
-        // Lets monitor the output by looking into the registers whether the instruction has been successfully implemented or not
+        scalar_pro_ready <= 1'b0;
+        @(posedge clk);
+       /* // Lets monitor the output by looking into the registers whether the instruction has been successfully implemented or not
 
         case (vopcode)
         // vector arithematic and set instructions opcode = 0x57
@@ -349,7 +357,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
 
 
-
+*/
 
     endtask
 
