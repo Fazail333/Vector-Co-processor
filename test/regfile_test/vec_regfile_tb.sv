@@ -42,6 +42,7 @@ module vec_regfile_tb(
     logic [DATA_WIDTH-1:0] dst_data;
     logic [VECTOR_LENGTH-1:0] vector_length;
     logic wrong_addr;
+    logic data_written;
 
     // Vector Register File instantiation
     vec_regfile uut (
@@ -60,7 +61,8 @@ module vec_regfile_tb(
         .wrong_addr(wrong_addr),
         .mask_operation(mask_operation),
         .v0_mask_data(v0_mask_data),
-        .mask_wr_en(mask_wr_en)
+        .mask_wr_en(mask_wr_en),
+        .data_written(data_written)
     );
 
     // Testbench Variables
@@ -187,7 +189,9 @@ module vec_regfile_tb(
             $display("LMUL = %0d", lmul);
             $display("operation = %s", operation ? "write" : "read");
         end else begin
-            
+            while (!data_written)begin
+                @(negedge clk);
+            end
             // Check the result
             read_data_1     <= rdata_1;
             read_data_2     <= rdata_2;
