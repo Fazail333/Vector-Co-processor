@@ -13,4 +13,11 @@
 // The width of the data signals . it depends  upon the "VLEN * max(lmul)" here the max of lmul is 8 
 `define MAX_VLEN 4096
 
+
+typedef enum logic [1:0]{  
+    IDLE,
+    PROCESS,
+    WAIT_READY
+} val_read_states_e;
+
 `endif
