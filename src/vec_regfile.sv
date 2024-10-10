@@ -22,7 +22,8 @@ module vec_regfile (
     output  logic   [DATA_WIDTH-1:0]        dst_data,          // The data of the destination register that is to be replaced with the data after the opertaion and masking
     output  logic   [VECTOR_LENGTH-1:0]     vector_length,     // Width of the vector depending on LMUL
     output  logic                           wrong_addr,        // Signal to indicate an invalid address
-    output  logic   [`VLEN-1:0]             v0_mask_data       // The data of the mask register that is v0 in register file 
+    output  logic   [`VLEN-1:0]             v0_mask_data,      // The data of the mask register that is v0 in register file 
+    output  logic                           data_written       // tells that data is written to the register file
 );
 
     logic temp_wrong_addr ;                                    // Temporary variable to hold error state
@@ -128,16 +129,21 @@ module vec_regfile (
                 vec_regfile[i] <= 'h0;
             end
             wrong_addr <= 0;
+            data_written <= 0;
         end else begin
+            data_written <= 0;
+            
             // Writing to  the v0 register to update the mask value          
             if (mask_wr_en)begin
                 vec_regfile[0] <= wdata[`VLEN-1:0];
+                data_written   <= 1'b1;
             end
 
             // If The write addr is 0 then the bits  for the v0 register will retain their value and others will bw updated    
 
             else if (wr_en) begin
-                wrong_addr <= 0;
+                wrong_addr   <= 0;
+                data_written <= 0;
                 // Check for valid write addresses
                 case (lmul)
                     4'b0001: begin
@@ -148,6 +154,7 @@ module vec_regfile (
                                 vec_regfile[waddr] <= vec_regfile[0];
                             end
                             vec_regfile[waddr] <= wdata[`VLEN-1:0];
+                            data_written       <= 1'b1;
                         end
                     end
                     4'b0010: begin
@@ -162,6 +169,7 @@ module vec_regfile (
                             end
 
                             vec_regfile[waddr + 1] <= wdata[2*`VLEN-1:`VLEN];
+                            data_written           <= 1'b1;
                         end
                     end
                     4'b0100: begin
@@ -178,6 +186,7 @@ module vec_regfile (
                             vec_regfile[waddr + 1] <= wdata[2*`VLEN-1:`VLEN];
                             vec_regfile[waddr + 2] <= wdata[3*`VLEN-1:2*`VLEN];
                             vec_regfile[waddr + 3] <= wdata[4*`VLEN-1:3*`VLEN];
+                            data_written           <= 1'b1;
                         end
                     end
                     4'b1000: begin
@@ -198,12 +207,17 @@ module vec_regfile (
                             vec_regfile[waddr + 5] <= wdata[6*`VLEN-1:5*`VLEN];
                             vec_regfile[waddr + 6] <= wdata[7*`VLEN-1:6*`VLEN];
                             vec_regfile[waddr + 7] <= wdata[8*`VLEN-1:7*`VLEN];
+                            data_written           <= 1'b1;
                         end
                     end
-                    default: wrong_addr <= 0;
+                    default: begin 
+                        wrong_addr <= 0;
+                        data_written <= 0;
+                    end
                 endcase
             end else begin
                 wrong_addr <= addr_error;  // Capture address error during read
+                data_written <= 0;
             end
             
             
