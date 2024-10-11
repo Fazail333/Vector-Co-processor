@@ -15,6 +15,9 @@ logic                     n_rst;
 logic [XLEN-1:0]          rs1_data;         // base_address
 logic [XLEN-1:0]          rs2_data;         // constant strided number
 
+// 
+logic [9:0]               vlmax;
+
 // vector_processor_controller -> vec_lsu
 logic                     stride_sel;       // selection for unit strided load
 logic                     ld_inst;          // 
@@ -49,6 +52,9 @@ vec_lsu vector_LSU(
     // scalar-processor -> vec_lsu
     .rs1_data(rs1_data), .rs2_data(rs2_data),
 
+    // 
+    .vlmax(vlmax),
+
     // vector_processor_controller -> vec_lsu
     .stride_sel(stride_sel), .ld_inst(ld_inst),
 
@@ -73,7 +79,8 @@ end
 initial begin
     init_signals;
     reset_sequence;
-    directed_test(1'b1, 1'b1, 32'h200, 2);
+    directed_test(1'b1, 1'b1, 32'h200, 2, 8);
+    directed_test(1'b1, 1'b1, 32'h400, 2, 16);
     @(posedge clk);
     $stop;
 end
@@ -96,11 +103,13 @@ endtask
 task directed_test (
     input logic load, unit_stride, 
     input logic [XLEN-1:0] base_address,
-    input logic [XLEN-1:0] constant_strided);
+    input logic [XLEN-1:0] constant_strided,
+    input logic [9:0]      max_ele);
     @(posedge clk);
     rs1_data <= base_address;
     rs2_data <= constant_strided;
     stride_sel <= unit_stride;
+    vlmax <= max_ele;
     @(posedge clk);
     ld_inst <= load;
     @(posedge clk);
