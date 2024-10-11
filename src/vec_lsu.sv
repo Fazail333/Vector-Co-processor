@@ -1,7 +1,7 @@
 module vec_lsu #(
     XLEN    = 32,       // scalar processor width
     VLEN    = 512,      // 512-bits in a vector register
-    VLMAX   = 16,       // Max. number of elements
+    //VLMAX   = 16,       // Max. number of elements
     SEW     = 32,       // 32-bits per element
     LMUL    = 1,        // grouping
     MAX_VLEN = 4096,
@@ -14,6 +14,9 @@ module vec_lsu #(
     // scalar-processor -> vec_lsu
     input logic [XLEN-1:0]          rs1_data,       // base_address
     input logic [XLEN-1:0]          rs2_data,       // constant strided number
+
+    // 
+    input logic [9:0]               vlmax,          // maximum no. of elements in a vector
 
     // vector_processor_controller -> vec_lsu
     input logic                     stride_sel,     // selection for unit strided load
@@ -30,7 +33,7 @@ module vec_lsu #(
     input logic [SEW-1:0]           mem2lsu_data,
 
     // vec_lsu  -> vec_register_file
-    output logic [MAX_VLEN-1:0]     vd_data,         // destination vector data
+    output logic [VLEN-1:0]     vd_data,         // destination vector data
     output logic                    is_loaded        // after getting the total elements is_loaded must on
 );
 
@@ -45,12 +48,12 @@ logic                           data_en;
 logic                           stride_en;
 logic [XLEN-1:0]                stride_value;
 
-logic [XLEN-1:0]                loaded_data [0:VLMAX-1];
+logic [XLEN-1:0]                loaded_data [0:VLEN-1];
 
 // store overall data in some buffur
 always_ff @(posedge clk or negedge n_rst) begin
     if (!n_rst) begin
-        for (int i=0; i<VLMAX; i++) begin
+        for (int i=0; i<VLEN; i++) begin
             loaded_data[i] <= '0;
         end
     end
@@ -58,7 +61,7 @@ always_ff @(posedge clk or negedge n_rst) begin
         loaded_data[count_el] <= mem2lsu_data;  //TODO first element issue
     end
     else begin
-        for (int i=0; i<VLMAX; i++) begin
+        for (int i=0; i<vlmax; i++) begin
             loaded_data[i] <= loaded_data[i];
         end
     end
@@ -120,7 +123,7 @@ end
 // adder for elements count
 assign add_el = count_el + 1;
 // comparator to check that the elements are loaded
-assign is_loaded = (count_el == VLMAX) ? 1 : 0;
+assign is_loaded = (count_el == vlmax) ? 1 : 0;
 
 /*  Controller  */
 typedef enum logic {IDLE, LOAD} lsu_state_e;
