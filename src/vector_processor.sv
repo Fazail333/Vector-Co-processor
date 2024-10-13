@@ -11,36 +11,36 @@ module vector_processor#(
     input   logic   clk,reset,
     
     // Inputs from the scaler processor  --> vector processor
-    input   logic   [`XLEN-1:0] instruction,            // The instruction that is to be executed by the vector processor
-    input   logic   [`XLEN-1:0] rs1_data,               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
-    input   logic   [`XLEN-1:0] rs2_data,               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
+    input   logic   [`XLEN-1:0]         instruction,            // The instruction that is to be executed by the vector processor
+    input   logic   [`XLEN-1:0]         rs1_data,               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
+    input   logic   [`XLEN-1:0]         rs2_data,               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
      // scaler_procssor  --> val_ready_controller
-    input   logic               inst_valid,             // tells data comming from the saler processor is valid
-    input   logic               scalar_pro_ready,       // tells that scaler processor is ready to take output
+    input   logic                       inst_valid,             // tells data comming from the saler processor is valid
+    input   logic                       scalar_pro_ready,       // tells that scaler processor is ready to take output
 
 
     // Outputs from vector rocessor --> scaler processor
-    output  logic               is_vec,                 // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
+    output  logic                       is_vec,                 // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
 
     // Output from vector processor lsu --> memory
-    output  logic               is_loaded,              // It tells that data is loaded from the memory and ready to be written in register file
-    output  logic               ld_inst,                // tells that it is load insruction or store one
-  
+    output  logic                       ld_req,                 // load request signal to the memory
+    output  logic                       st_req,                 // store request signal to the memory
+
     //Inputs from main_memory -> vec_lsu
-    input   logic   [SEW-1:0]   mem2lsu_data,           // data from the memory to lsu in case of load
+    input   logic   [`MEM_DATA_WIDTH-1:0]mem2lsu_data,           // data from the memory to lsu in case of load
 
     // Output from  vec_lsu -> main_memory
-    output  logic   [`XLEN-1:0] lsu2mem_addr,           // address from lsu to memory in case of the load
+    output  logic   [`XLEN-1:0]         lsu2mem_addr,           // address from lsu to memory in case of the load
     
     // csr_regfile -> scalar_processor
-    output  logic   [`XLEN-1:0] csr_out,                // read data from the csr registers
+    output  logic   [`XLEN-1:0]         csr_out,                // read data from the csr registers
 
     // valready_controller  --> scaler_processor 
-    output  logic               vec_pro_ack,            // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
+    output  logic                       vec_pro_ack,            // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
 
     // val_ready_controller --> scaler_processor
-    output  logic               vec_pro_ready           // tells that vector processor is ready to take the instruction
+    output  logic                       vec_pro_ready           // tells that vector processor is ready to take the instruction
 
 );
 
@@ -84,8 +84,9 @@ logic                inst_done;
         .is_vec             (is_vec         ),
         
         // Output from vector processor lsu --> memory
-        .is_loaded          (is_loaded      ),        
-
+        .ld_req             (ld_req         ),
+        .st_req             (st_req         ),
+        
         
         //Inputs from main_memory -> vec_lsu
         .mem2lsu_data       (mem2lsu_data   ),

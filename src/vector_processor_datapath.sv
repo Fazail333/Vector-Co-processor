@@ -12,52 +12,52 @@ module vector_processor_datapth #(
     input   logic   clk,reset,
     
     // Inputs from the scaler processor  --> vector processor
-    input   logic   [`XLEN-1:0] instruction,        // The instruction that is to be executed by the vector processor
-    input   logic   [`XLEN-1:0] rs1_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
-    input   logic   [`XLEN-1:0] rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
+    input   logic   [`XLEN-1:0]             instruction,        // The instruction that is to be executed by the vector processor
+    input   logic   [`XLEN-1:0]             rs1_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
+    input   logic   [`XLEN-1:0]             rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
     //Inputs from main_memory -> vec_lsu
-    input   logic   [SEW-1:0]   mem2lsu_data,
+    input   logic   [`MEM_DATA_WIDTH-1:0]   mem2lsu_data,
 
     // Output from  vec_lsu -> main_memory
-    output  logic   [`XLEN-1:0] lsu2mem_addr,
+    output  logic   [`XLEN-1:0]             lsu2mem_addr,       // Gives the memory address to load or store data
+    output  logic                           ld_req,             // load request signal to the memory
+    output  logic                           st_req,             // store request signal to the memory
 
     // Outputs from vector rocessor --> scaler processor
-    output  logic               is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
+    output  logic                           is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
     
-    // Output from vector processor lsu --> memory
-    output  logic               is_loaded,         // It tells that data is loaded from the memory and ready to be written in register file
     
     // csr_regfile -> scalar_processor
-    output  logic   [`XLEN-1:0] csr_out,            
+    output  logic   [`XLEN-1:0]             csr_out,            
 
     // datapth  --> scaler_processor 
-    output  logic               inst_done,      // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
+    output  logic                           inst_done,          // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
 
 
     // Inputs from the controller --> datapath
     
     // vec_control_signals -> vec_decode
-    input   logic               vl_sel,             // selection for rs1_data or uimm
-    input   logic               vtype_sel,          // selection for rs2_data or zimm
-    input   logic               lumop_sel,          // selection lumop
-    input   logic               rs1rd_de,           // selection for VLMAX or comparator
-    input   logic               rs1_sel,            // selection for rs1_data
+    input   logic                           vl_sel,             // selection for rs1_data or uimm
+    input   logic                           vtype_sel,          // selection for rs2_data or zimm
+    input   logic                           lumop_sel,          // selection lumop
+    input   logic                           rs1rd_de,           // selection for VLMAX or comparator
+    input   logic                           rs1_sel,            // selection for rs1_data
 
     // vec_control_signals -> vec_csr_regs
-    input   logic               csrwr_en,
+    input   logic                           csrwr_en,
 
     // vec_control_signals -> vec_register_file
-    input   logic                vec_reg_wr_en,     // The enable signal to write in the vector register
-    input   logic                mask_operation,    // This signal tell this instruction is going to perform mask register update
-    input   logic                mask_wr_en,        // This the enable signal for updating the mask value
+    input   logic                           vec_reg_wr_en,     // The enable signal to write in the vector register
+    input   logic                           mask_operation,    // This signal tell this instruction is going to perform mask register update
+    input   logic                           mask_wr_en,        // This the enable signal for updating the mask value
 
-    input   logic   [1:0]        data_mux1_sel,     // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
-    input   logic                data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
+    input   logic   [1:0]                   data_mux1_sel,     // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
+    input   logic                           data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
 
     // vec_control_signals -> vec_lsu
-    input   logic                stride_sel,         // tells that  it is a unit stride or the indexed
-    input   logic                ld_inst             // tells that it is load insruction or store one
+    input   logic                           stride_sel,         // tells that  it is a unit stride or the indexed
+    input   logic                           ld_inst             // tells that it is load insruction or store one
 
 );
 
@@ -88,6 +88,8 @@ logic   [2:0] nf;
 logic   [`XLEN-1:0] scalar1;
 logic   [`XLEN-1:0] scalar2;
 
+// Output from vector processor lsu --> lsu mux
+logic                           is_loaded;              // It tells that data is loaded from the memory and ready to be written in register file
 
 // The extended scaler 1 and scaler 2 upto MAX_VLEN
 logic   [`MAX_VLEN-1:0] scaler1_extended ,scaler2_extended; 
@@ -129,35 +131,35 @@ assign inst_done = data_written || csr_done;
 
     vec_decode DECODER(
         // scalar_processor -> vec_decode
-        .vec_inst(instruction),
-        .rs1_data(rs1_data), 
-        .rs2_data(rs2_data),
+        .vec_inst           (instruction    ),
+        .rs1_data           (rs1_data       ), 
+        .rs2_data           (rs2_data       ),
 
         // vec_decode -> scalar_processor
-        .is_vec(is_vec),
+        .is_vec             (is_vec         ),
         
         // vec_decode -> vec_regfile
-        .vec_read_addr_1(vec_read_addr_1),        // vs1_addr
-        .vec_read_addr_2(vec_read_addr_2),        // vs2_addr
-        .vec_write_addr(vec_write_addr),         // vd_addr
-        .vec_imm(vec_imm),
-        .vec_mask(vec_mask),
+        .vec_read_addr_1    (vec_read_addr_1),      
+        .vec_read_addr_2    (vec_read_addr_2),      
+        .vec_write_addr     (vec_write_addr ),      
+        .vec_imm            (vec_imm        ),
+        .vec_mask           (vec_mask       ),
 
         // vec_decode -> vector load
-        .width(width),                  // width of memory element
-        .mew(mew),                    // selection bwtween fp or integer
-        .nf(nf),                     // number of fields          
+        .width              (width          ),             
+        .mew                (mew            ),             
+        .nf                 (nf             ),                       
 
         // vec_decode -> csr 
-        .scalar2(scalar2),               // vector type or rs2
-        .scalar1(scalar1),               // vector length or rs1 (base address)
+        .scalar2            (scalar2        ),             
+        .scalar1            (scalar1        ),             
 
         // vec_control_signals -> vec_decode
-        .vl_sel(vl_sel),                 // selection for rs1_data or uimm
-        .vtype_sel(vtype_sel),              // selection for rs2_data or zimm
-        .lumop_sel(lumop_sel),              // selection lumop
-        .rs1rd_de(rs1rd_de),               // selection for VLMAX or comparator
-        .rs1_sel(rs1_sel)                 // selection for rs1_data
+        .vl_sel             (vl_sel         ),             
+        .vtype_sel          (vtype_sel      ),             
+        .lumop_sel          (lumop_sel      ),             
+        .rs1rd_de           (rs1rd_de       ),             
+        .rs1_sel            (rs1_sel        )              
     );
 
 
@@ -267,30 +269,32 @@ assign inst_done = data_written || csr_done;
 
 
     vec_lsu VLSU(
-        .clk            (clk),
-        .n_rst          (reset),
+        .clk            (clk                        ),
+        .n_rst          (reset                      ),
 
         // scalar-processor -> vec_lsu
-        .rs1_data       (data_mux1_out[`XLEN-1:0]),  
-        .rs2_data       (data_mux2_out[`XLEN-1:0]),
+        .rs1_data       (data_mux1_out[`XLEN-1:0]   ),  
+        .rs2_data       (data_mux2_out[`XLEN-1:0]   ),
 
         // vector_processor_controller -> vec_lsu
-        .stride_sel     (stride_sel), 
-        .ld_inst        (ld_inst),      
+        .stride_sel     (stride_sel                 ), 
+        .ld_inst        (ld_inst                    ),      
 
         // vec_decode -> vec_lsu
-        .mew            (mew),          
-        .width          (width),      
+        .mew            (mew                        ),          
+        .width          (width                      ),      
 
         // vec_lsu -> main_memory
-        .lsu2mem_addr   (lsu2mem_addr),
+        .lsu2mem_addr   (lsu2mem_addr               ),
+        .ld_req         (ld_req                     ),
+        .st_req         (st_req                     ),
 
         // main_memory -> vec_lsu
-        .mem2lsu_data   (mem2lsu_data),
+        .mem2lsu_data   (mem2lsu_data               ),
 
         // vec_lsu  -> vec_register_file
-        .vd_data        (vec_wr_data), 
-        .is_loaded      (is_loaded)  
+        .vd_data        (vec_wr_data                ), 
+        .is_loaded      (is_loaded                  )  
     );
 
 
