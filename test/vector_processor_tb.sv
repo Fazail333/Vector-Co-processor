@@ -127,7 +127,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         forever #5 clk <= ~clk;
     end
 
-    // MAin test bench
+    /***********************************************  MAIN test bench ****************************************************************/
     initial begin
 
         // Reading the instruction memory
@@ -160,7 +160,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         $finish;
     end
 
-
+    /********************************************************************************************************************************/
 
     // Initializing the  signals
     task  init_signals();
@@ -197,43 +197,9 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         end
     endtask
 
+ 
 
-
-    // Instruction Memory
-    task instruction_fetch(input logic [`XLEN-1:0]address );
-    
-        begin
-            $readmemh("/home/zawaher-bin-asim/Vector-Co-processor/test/instruction_mem.txt", inst_mem);
-            instruction = inst_mem[address];        // Fetch instruction from memory
-            rs1_addr = instruction[19:15];          // Decode rs1 address
-            rs2_addr = instruction[24:20];          // Decode rs2 address
-            rs1_data = scalar_regfile[rs1_addr];    // Fetch rs1 data
-            rs2_data = scalar_regfile[rs2_addr];    // Fetch rs2 data
-        end
-
-    endtask
-
-    // It will issue the instruction
-    task  instruction_issue(input int z);
-
-            
-        // Fetching the instruction + data
-        instruction_fetch(z);
-
-        // Making the inst_valid 1
-        inst_valid <= 1'b1;
-        @(posedge clk);
-        // Wait for the vector processor to be ready to take instruction
-        while (!vec_pro_ready)begin
-            @(posedge clk );
-        end
-        
-        inst_valid <= 1'b0;
-        @(posedge clk);
-    
-    endtask 
-
-/********************************************** MEMORY DATA FETCHING ********************************************************************/
+/********************************************** MEMORY DATA FETCHING  AND CALCULATING THE LOADED DATA *************************************************************/
 
     // if load_instruction and the masking is enabled it sees  see start_element number from the csr_file
     // and  before that start element it should copy the elements from the destination register and 
@@ -404,13 +370,54 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         
     endtask
 
+/*********************************************************************************************************************************************************/
+
+
+/*********************************************************** DRIVER TASKS *******************************************************************************/
+     // Instruction Memory
+    task instruction_fetch(input logic [`XLEN-1:0]address );
+    
+        begin
+            $readmemh("/home/zawaher-bin-asim/Vector-Co-processor/test/instruction_mem.txt", inst_mem);
+            instruction = inst_mem[address];        // Fetch instruction from memory
+            rs1_addr = instruction[19:15];          // Decode rs1 address
+            rs2_addr = instruction[24:20];          // Decode rs2 address
+            rs1_data = scalar_regfile[rs1_addr];    // Fetch rs1 data
+            rs2_data = scalar_regfile[rs2_addr];    // Fetch rs2 data
+        end
+
+    endtask
+
+    // It will issue the instruction
+    task  instruction_issue(input int z);
+
+            
+        // Fetching the instruction + data
+        instruction_fetch(z);
+
+        // Making the inst_valid 1
+        inst_valid <= 1'b1;
+        @(posedge clk);
+        // Wait for the vector processor to be ready to take instruction
+        while (!vec_pro_ready)begin
+            @(posedge clk );
+        end
+        
+        inst_valid <= 1'b0;
+        @(posedge clk);
+    
+    endtask
 
     task driver(input int i );
         
         instruction_issue(i);
        
     endtask
+ 
+/*******************************************************************************************************************************************************/
 
+
+/*********************************************************** MONITOR TASK *****************************************************************************/
 
     task monitor ();
         logic [4:0]vec_reg_addr ;
