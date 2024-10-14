@@ -21,7 +21,7 @@ logic   [`XLEN-1:0] rs1_data;           // The scaler input from the scaler proc
 logic   [`XLEN-1:0] rs2_data;           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
 // Outputs from vector rocessor --> scaler processor
-logic               is_vec;             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
+logic               is_vec;             // This tells the instruction is a vector instruction or not mean a legal instruction or not
         
 // csr_regfile -> scalar_processor
 logic   [`XLEN-1:0] csr_out;            
@@ -233,6 +233,21 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
     
     endtask 
 
+/********************************************** MEMORY DATA FETCHING ********************************************************************/
+
+    // if load_instruction and the masking is enabled it sees  see start_element number from the csr_file
+    // and  before that start element it should copy the elements from the destination register and 
+    // paste them before the start element based on the sew in the csr file and
+    // from start element it should see the mask register bit value having index corresponding to the start element number .
+    // if the bit is zero it  should see the mask_agnostic value .
+    // if  1 it should replace that element with sew number of  1s and 
+    // if the mask agnostic is 0 it  should  replace it with the value with destination register element
+    // that corresponds   to that mask register bit based on the sew . 
+    // if the mask register bit is 1 then value of the element will be same as the data fetched from the memory. 
+    // and do the same till the value of the vl from the csr_register file and then after the vl value till vlmax
+    // it should see whether the tail agnostic policy is active or not 
+    // if yes then it should replace ecah element of the loaded data from the vl to vlmax with sew number of 1s .
+    // and if not then it should replace each element with the destination register element corresponding to that element based on the sew .
 
     task memory_data_fetch();
         
@@ -266,11 +281,22 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
             // If masking is not enabled
             else begin
                 while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
-                    if (ld_req)begin
+
+                    // Dynamic data load logic for `loaded_data` based on the element width (sew).
+                    // Direct bit-slicing using variable `sew` is avoided due to simulator constraints.
+                    // Loop to handle loading data from memory when masking is not enabled.
+                    // Instead of assigning variable-width slices dynamically, load each bit of the element.
+                   
+                   if (ld_req) begin
                         mem2lsu_data = dummy_mem[lsu2mem_addr];
-                        loaded_data[((i+1)*sew)-1:(i*sew)] = mem2lsu_data ;
-                        i++ ;
-                    end 
+                        for (int idx = 0; idx < sew; idx++) begin
+
+                            // Assign each bit from memory to the appropriate position in `loaded_data`
+                            loaded_data[(i * sew) + idx] = mem2lsu_data[idx];
+                        end
+                        i++; // Increment index for the next element
+                    end
+
                 end             
             end
             
@@ -285,15 +311,16 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         logic [`MAX_VLEN-1:0] loaded_data;        // Loaded data from memory
         logic [31:0] mem_data;                    // Fetched data from memory
         int vl;                                   // Vector length (from CSR)
+        int sew;                                  // Element width (from CSR)
         int vlmax;                                // maximum number of elements
         int start_elem;                           // Start element (from CSR)
         bit mask_agnostic;                        // Mask agnostic flag (from CSR)
         bit tail_agnostic;                        // Tail agnostic flag (from CSR)
                     
         
-        // Get SEW, VL, start_elem, mask_agnostic, and tail_agnostic from the CSR
+        // Get  sew,VL,vlmax , start_elem, mask_agnostic, and tail_agnostic from the CSR
         sew = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.sew;                    
-        vl = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vector_length;
+        vl = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vec_length;
         vlmax = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlmax;
         start_elem = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.start_element;   
         mask_agnostic = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.mask_agnostic;
@@ -302,30 +329,30 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         case (VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.lmul)
                 
             4'b0001: begin // LMUL = 1
-                destination_reg = VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]];
+                destination_reg = VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7]];
             end
             4'b0010: begin // LMUL = 2
         
-                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 1],
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]]};
+                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 1],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7]]};
             end
 
             4'b0100: begin // LMUL = 4
-                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 3], 
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 2],
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 1],
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]]};
+                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 3], 
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 2],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 1],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7]]};
             end
 
             4'b1000: begin // LMUL = 8
-                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 7], 
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 6],
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 5],
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 4]
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 3], 
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 2],
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 1],
-                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]]};
+                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 7], 
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 6],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 5],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 4],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 3], 
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 2],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7] + 1],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[instruction[11:7]]};
             end
             default: begin 
                 destination_reg = 'h0;
@@ -339,7 +366,9 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         // Step 1: Handle elements before the start element, runs once
         if (!step1_done) begin
             for (i = 0; i < start_elem; i++) begin
-                loaded_data[((i+1)*sew)-1:(i*sew)] = destination_reg[((i+1)*sew)-1:(i*sew)];
+                for (int idx = 0; idx < sew; idx++) begin
+                    loaded_data[(i * sew) + idx] = destination_reg[(i * sew) + idx];
+                end
             end
             step1_done = 1; // Mark step1 as done
         end        
@@ -348,31 +377,30 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         // Step 3: From VL to VLMAX, handle tail agnostic logic
         // Step 3: Handle elements after VL, runs once
         if (!step3_done && i >= vl) begin
-            for (i = vl; i < MAX_VLEN; i++) begin
-                if (tail_agnostic) begin
-                    loaded_data[((i+1)*sew)-1:(i*sew)] = {sew{1'b1}}; // SEW number of 1s
-                end else begin
-                    loaded_data[((i+1)*sew)-1:(i*sew)] = destination_reg[((i+1)*sew)-1:(i*sew)];
+            for (i = vl; i < vlmax; i++) begin
+                for (int idx = 0; idx < sew; idx++) begin
+                    if (tail_agnostic) begin
+                        loaded_data[(i * sew) + idx] = 1'b1; // Tail agnostic: fill with 1's
+                    end else begin
+                        loaded_data[(i * sew) + idx] = destination_reg[(i * sew) + idx];
+                    end
                 end
             end
-            step3_done = 1; // Mark step3 as done
+            step3_done = 1;
         end
 
         // Step 2: Incrementally process masked elements between start_elem and VL
         if (ld_req && i >= start_elem && i < vl) begin
-            if (mask_reg[i] == 1'b0) begin
-                // Mask bit is 0
-                if (mask_agnostic) begin
-                    loaded_data[((i+1)*sew)-1:(i*sew)] = {sew{1'b1}}; // SEW number of 1s
+            for (int idx = 0; idx < sew; idx++) begin
+                if (mask_reg[i] == 1'b0) begin
+                    loaded_data[(i * sew) + idx] = mask_agnostic ? 1'b1 : destination_reg[(i * sew) + idx];
                 end else begin
-                    loaded_data[((i+1)*sew)-1:(i*sew)] = destination_reg[((i+1)*sew)-1:(i*sew)];
+                    loaded_data[(i * sew) + idx] = mem2lsu_data[idx];
                 end
-            end else begin
-                // Mask bit is 1, load data from memory
-                loaded_data[((i+1)*sew)-1:(i*sew)] = mem2lsu_data;
             end
             i++; // Increment index for next element on subsequent load
-        end   
+        end
+   
         
     endtask
 
@@ -385,6 +413,12 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
 
     task monitor ();
+        logic [4:0]vec_reg_addr ;
+        
+        logic [`MAX_VLEN-1:0] vec_reg_data;
+
+        vec_reg_addr = instruction[11:7];
+
         @(posedge clk);
         if (!is_vec)begin
             $error("ILLEGAL INSTRUCTION OR NOT A VECTOR INSTRUCTION");
@@ -479,9 +513,6 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
                 // Vector load instructions
                 V_LOAD: begin
-                    logic vec_reg_addr = instruction[11:7];
-                    logic [`MAX_VLEN-1:0] vec_reg_data;
-
 
                     case (VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.lmul)
                         
@@ -505,7 +536,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                             vec_reg_data = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 7], 
                                             VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 6],
                                             VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 5],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 4]
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 4],
                                             VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 3], 
                                             VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 2],
                                             VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 1],
@@ -524,9 +555,9 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                         $display("======================= TEST FAILED ==========================");
                         $display("ACTUAL LOADED DATA : %d",vec_reg_data);
                         $display("EXPECTED_LOADED DATA : %d",loaded_data);
-                        
-    
-                default: ;  
+                    end 
+                end 
+                default:  ;  
             endcase
         end
     endtask
