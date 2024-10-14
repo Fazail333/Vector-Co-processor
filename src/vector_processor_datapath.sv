@@ -98,7 +98,7 @@ logic   [`MAX_VLEN-1:0] scaler1_extended ,scaler2_extended;
 logic   [`MAX_VLEN-1:0] vec_wr_data;
 
 // vec_csr_regs ->
-logic   [4:0]                   vlmul;                  // Gives the value of the lmul that is to used  in the procesor
+logic   [3:0]                   vlmul;                  // Gives the value of the lmul that is to used  in the procesor
 logic   [6:0]                   sew;                    // Gives the standard element width 
 logic   [9:0]                   vlmax;                  // the maximum number of elements vector will contain based on the lmul and sew and vlen
 logic                           tail_agnostic;          // vector tail agnostic
