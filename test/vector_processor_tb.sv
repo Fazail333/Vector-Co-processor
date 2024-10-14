@@ -23,10 +23,6 @@ logic   [`XLEN-1:0] rs2_data;           // The scaler input from the scaler proc
 // Outputs from vector rocessor --> scaler processor
 logic               is_vec;             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
         
-// Output from vector processor lsu --> memory
-logic               is_loaded;          // It tells that data is loaded from the memory and ready to be written in register file
-logic               ld_inst;            // tells that it is load insruction or store one // scaler_procssor  --> val_ready_controller
-    
 // csr_regfile -> scalar_processor
 logic   [`XLEN-1:0] csr_out;            
 
@@ -35,10 +31,12 @@ logic   [4:0]       rs1_addr;
 logic   [4:0]       rs2_addr;
 
  //Inputs from main_memory -> vec_lsu
-logic   [SEW-1:0]   mem2lsu_data;
+logic   [`MEM_DATA_WIDTH-1:0]   mem2lsu_data;
 
     // Output from  vec_lsu -> main_memory
 logic   [`XLEN-1:0] lsu2mem_addr;
+logic               ld_req;           
+logic               st_req;           
    
 // Register file to hold scalar register values (can be initialized as needed)
 logic [`XLEN-1:0] scalar_regfile [31:0];
@@ -47,7 +45,7 @@ logic [`XLEN-1:0] scalar_regfile [31:0];
 logic [`XLEN-1:0] inst_mem[depth-1:0];
 
 //  Dummy Memory for testing
-logic [7:0]dummy_mem[depth-1:0];
+logic [`MEM_DATA_WIDTH-1:0]dummy_mem[depth-1:0];
 
 
 
@@ -64,6 +62,14 @@ logic               inst_valid;             // tells that instruction and data r
 
 /*****************************************************************************************************************************/
 
+
+/***************************************** FLAGS FOR THE LOAD ****************************************************************/
+int i = 0; // Declare i globally or persist across loads
+bit step1_done = 0;
+bit step3_done = 0;
+logic [`XLEN-1:0] current_instruction = 'h0;        // Keep track of the current instruction
+logic [`MAX_VLEN-1:0]loaded_data;                   // loaded data for comparison
+/****************************************************************************************************************************/
 
 v_opcode_e      vopcode;
 v_func3_e       vfunc3;
@@ -90,8 +96,9 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         .is_vec             (is_vec             ),
 
         // Output from vector processor lsu --> memory
-        .is_loaded          (is_loaded          ),        
-        .ld_inst            (ld_inst            ), 
+        .ld_req             (ld_req             ),
+        .st_req             (st_req             ),
+         
         
         //Inputs from main_memory -> vec_lsu
         .mem2lsu_data       (mem2lsu_data       ),
@@ -228,16 +235,145 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
 
     task memory_data_fetch();
-        if (ld_inst) begin
-            // Keep ld_inst high until is_loaded signal is asserted
-            while (!is_loaded) begin
-                mem2lsu_data = {dummy_mem[lsu2mem_addr + 3], dummy_mem[lsu2mem_addr + 2], 
-                                dummy_mem[lsu2mem_addr + 1], dummy_mem[lsu2mem_addr]};
-                @(posedge clk);
-                ld_inst <= 1;  // Keep ld_inst asserted until is_loaded is high
-            end
-            ld_inst <= 0;  // Deassert ld_inst once load is complete
+        
+        int sew;                                            // Element width (from CSR)
+        sew = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.sew;    
+        
+
+        // New load instruction detected: reset step flags and loop index
+        if (VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst && instruction != current_instruction) begin
+            step1_done = 0;
+            step3_done = 0;
+            i = 0;
+            current_instruction = instruction; // Update to the new instruction
+            // Initializing loaded data
+            loaded_data = 'h0;
+
         end
+        
+        if (VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst)begin
+            
+            // If the masking is enabled 
+            if (!instruction[25])begin
+                
+                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
+                    if (ld_req)begin
+                        mem2lsu_data = dummy_mem[lsu2mem_addr];
+                        vector_load_with_masking();
+                    end
+                end
+            end
+            // If masking is not enabled
+            else begin
+                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
+                    if (ld_req)begin
+                        mem2lsu_data = dummy_mem[lsu2mem_addr];
+                        loaded_data[((i+1)*sew)-1:(i*sew)] = mem2lsu_data ;
+                        i++ ;
+                    end 
+                end             
+            end
+            
+        end
+        
+    endtask
+
+    task vector_load_with_masking();
+        // Assuming the following values are available:
+        logic [`MAX_VLEN-1:0] destination_reg;    // Destination register file
+        logic [`VLEN-1:0] mask_reg;               // Mask register (v0 register)
+        logic [`MAX_VLEN-1:0] loaded_data;        // Loaded data from memory
+        logic [31:0] mem_data;                    // Fetched data from memory
+        int vl;                                   // Vector length (from CSR)
+        int vlmax;                                // maximum number of elements
+        int start_elem;                           // Start element (from CSR)
+        bit mask_agnostic;                        // Mask agnostic flag (from CSR)
+        bit tail_agnostic;                        // Tail agnostic flag (from CSR)
+                    
+        
+        // Get SEW, VL, start_elem, mask_agnostic, and tail_agnostic from the CSR
+        sew = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.sew;                    
+        vl = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vector_length;
+        vlmax = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlmax;
+        start_elem = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.start_element;   
+        mask_agnostic = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.mask_agnostic;
+        tail_agnostic = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.tail_agnostic;
+
+        case (VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.lmul)
+                
+            4'b0001: begin // LMUL = 1
+                destination_reg = VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]];
+            end
+            4'b0010: begin // LMUL = 2
+        
+                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 1],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]]};
+            end
+
+            4'b0100: begin // LMUL = 4
+                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 3], 
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 2],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 1],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]]};
+            end
+
+            4'b1000: begin // LMUL = 8
+                destination_reg = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 7], 
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 6],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 5],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 4]
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 3], 
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 2],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7] + 1],
+                                VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[insrtruction[11:7]]};
+            end
+            default: begin 
+                destination_reg = 'h0;
+            end
+        endcase
+
+        // v0 as mask register
+        mask_reg = VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[0];
+
+        // Step 1: Before the start element, copy elements from the destination register
+        // Step 1: Handle elements before the start element, runs once
+        if (!step1_done) begin
+            for (i = 0; i < start_elem; i++) begin
+                loaded_data[((i+1)*sew)-1:(i*sew)] = destination_reg[((i+1)*sew)-1:(i*sew)];
+            end
+            step1_done = 1; // Mark step1 as done
+        end        
+
+
+        // Step 3: From VL to VLMAX, handle tail agnostic logic
+        // Step 3: Handle elements after VL, runs once
+        if (!step3_done && i >= vl) begin
+            for (i = vl; i < MAX_VLEN; i++) begin
+                if (tail_agnostic) begin
+                    loaded_data[((i+1)*sew)-1:(i*sew)] = {sew{1'b1}}; // SEW number of 1s
+                end else begin
+                    loaded_data[((i+1)*sew)-1:(i*sew)] = destination_reg[((i+1)*sew)-1:(i*sew)];
+                end
+            end
+            step3_done = 1; // Mark step3 as done
+        end
+
+        // Step 2: Incrementally process masked elements between start_elem and VL
+        if (ld_req && i >= start_elem && i < vl) begin
+            if (mask_reg[i] == 1'b0) begin
+                // Mask bit is 0
+                if (mask_agnostic) begin
+                    loaded_data[((i+1)*sew)-1:(i*sew)] = {sew{1'b1}}; // SEW number of 1s
+                end else begin
+                    loaded_data[((i+1)*sew)-1:(i*sew)] = destination_reg[((i+1)*sew)-1:(i*sew)];
+                end
+            end else begin
+                // Mask bit is 1, load data from memory
+                loaded_data[((i+1)*sew)-1:(i*sew)] = mem2lsu_data;
+            end
+            i++; // Increment index for next element on subsequent load
+        end   
+        
     endtask
 
 
@@ -250,115 +386,149 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
     task monitor ();
         @(posedge clk);
-        // Tell that scaler_porcessor is ready  to take the response
-        scalar_pro_ready <= 1'b1;
+        if (!is_vec)begin
+            $error("ILLEGAL INSTRUCTION OR NOT A VECTOR INSTRUCTION");
+        end
+        else begin
+            // Tell that scaler_porcessor is ready  to take the response
+            scalar_pro_ready <= 1'b1;
 
-        @(posedge clk);
-        //Wait for the acknowledgement from the vector processor 
-        while (!vec_pro_ack)begin
             @(posedge clk);
-        end 
+            //Wait for the acknowledgement from the vector processor 
+            while (!vec_pro_ack)begin
+                @(posedge clk);
+            end 
 
-        scalar_pro_ready <= 1'b0;
-        @(posedge clk);
-       /* // Lets monitor the output by looking into the registers whether the instruction has been successfully implemented or not
+            scalar_pro_ready <= 1'b0;
+            
+         // Lets monitor the output by looking into the registers whether the instruction has been successfully implemented or not
 
-        case (vopcode)
-        // vector arithematic and set instructions opcode = 0x57
-        V_ARITH: begin
+            case (vopcode)
+            // vector arithematic and set instructions opcode = 0x57
+                V_ARITH: begin
 
-            case (vfunc3)
-                
-                // vector configuration instructions
-                CONF: begin
-                    case (inst_msb[1])
-                    // VSETVLI
-                        1'b0: begin
-                            rs1_o = rs1_data;
-                            rs2_o =  '0; 
-                            zimm  = vec_inst [30:20];
-                        end
-                        1'b1: begin
-                            case (inst_msb[0])
-                            // VSETIVLI
-                                1'b1: begin
-                                    rs1_o = '0;
-                                    rs2_o = '0; 
-                                    zimm  = {'0,vec_inst [29:20]};
-                                end
-                            // VSETVL
+                    case (vfunc3)
+                        
+                        // vector configuration instructions
+                        CONF: begin
+                            case (instruction[31]== 1)
+                            // VSETVLI
                                 1'b0: begin
-                                    rs1_o = rs1_data;
-                                    rs2_o = rs2_data;
-                                    zimm  =  '0;
+                                    if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == instruction[30:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == rs1_data) )begin
+                                        $display("======================= TEST PASSED ==========================");
+                                        $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                        $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                    end
+                                    else begin
+                                        $display("======================= TEST FAILED ==========================");
+                                        $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                        $display("EXPECTED_VTYPE Value : %d",instruction[30:20]);
+                                        $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                        $display("EXPECTED_VL Value : %d",rs1_data);
+                                        
+                                    end
+                                    
                                 end
-                            default: begin
-                                rs1_o = '0;
-                                rs2_o = '0;
-                                zimm  = '0;
-                            end
+                                1'b1: begin
+                                    case (instruction[30]== 1)
+                                    // VSETIVLI
+                                        1'b1: begin
+                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == instruction[29:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == instruction[19:15]) )begin
+                                                $display("======================= TEST PASSED ==========================");
+                                                $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                            end
+                                            else begin
+                                                $display("======================= TEST FAILED ==========================");
+                                                $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("EXPECTED_VTYPE Value : %d",instruction[29:20]);
+                                                $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                $display("EXPECTED_VL Value : %d",instruction[19:15]);
+                                                
+                                            end
+
+                                        end
+                                    // VSETVL
+                                        1'b0: begin
+                                            
+                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == rs2_data) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == rs1_data) )begin
+                                                $display("======================= TEST PASSED ==========================");
+                                                $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                            end
+                                            else begin
+                                                $display("======================= TEST FAILED ==========================");
+                                                $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("EXPECTED_VTYPE Value : %d",rs2_data);
+                                                $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                $display("EXPECTED_VL Value : %d",rs1_data);
+                                                
+                                            end
+                                            
+                                        end
+                                    default: ;
+                                    endcase
+                                end
+                                default: ;
                             endcase
                         end
-                        default: begin
-                            rs1_o = '0;
-                            rs2_o = '0;
-                            zimm  = '0;
-                        end
+
+                        default: ;
                     endcase
                 end
 
-                default: begin
-                    vec_write_addr  = '0;
-                    vec_read_addr_1 = '0;
-                    vec_read_addr_2 = '0;
-                    vec_imm         = '0;
-                    vec_mask        = '0;
-                    rs2_o           = '0;
-                    rs1_o           = '0;
-                    zimm            = '0;
-                end
+                // Vector load instructions
+                V_LOAD: begin
+                    logic vec_reg_addr = instruction[11:7];
+                    logic [`MAX_VLEN-1:0] vec_reg_data;
+
+
+                    case (VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.lmul)
+                        
+                        4'b0001: begin // LMUL = 1
+                            vec_reg_data = VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr];
+                        end
+                        4'b0010: begin // LMUL = 2
+                    
+                            vec_reg_data = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 1],
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr]};
+                        end
+
+                        4'b0100: begin // LMUL = 4
+                            vec_reg_data = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 3], 
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 2],
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 1],
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr]};
+                        end
+            
+                        4'b1000: begin // LMUL = 8
+                            vec_reg_data = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 7], 
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 6],
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 5],
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 4]
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 3], 
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 2],
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 1],
+                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr]};
+                        end
+                        default: begin 
+                            vec_reg_data = 'h0;
+                        end
+                    endcase
+                    
+                    if (loaded_data == vec_reg_data) begin
+                        $display("======================= TEST PASSED ==========================");
+                        $display("Loaded DATA : %d", vec_reg_data);
+                    end
+                    else begin
+                        $display("======================= TEST FAILED ==========================");
+                        $display("ACTUAL LOADED DATA : %d",vec_reg_data);
+                        $display("EXPECTED_LOADED DATA : %d",loaded_data);
+                        
+    
+                default: ;  
             endcase
         end
-
-        // Vector load instructions
-        V_LOAD: begin
-            is_vec          = 1;
-            vec_write_addr  = vd_addr;
-            vec_imm         = '0;
-            vec_mask        = vm;
-            mew             = vec_inst[28];
-            nf              = vec_inst[31:29];
-            width           = vec_inst[14:12];
-            case(mop)
-                2'b10: rs2_o = rs2_data;
-                // gather unordered
-                2'b01:vec_read_addr_2 = vs2_addr;
-                // gather ordered
-                2'b11:vec_read_addr_2 = vs2_addr;
-                default:vec_read_addr_2 = '0;
-            endcase
-        end
-
-        default: begin
-            is_vec          = '0;
-            vec_write_addr  = '0;
-            vec_read_addr_1 = '0;
-            vec_read_addr_2 = '0;
-            vec_imm         = '0;
-            vec_mask        = '0;
-            rs1_o           = '0;
-            rs2_o           = '0;
-            zimm            = '0;
-            mew             = '0;
-            nf              = '0;
-            width           = '0;
-        end
-    endcase
-
-
-
-*/
-
     endtask
 
 
