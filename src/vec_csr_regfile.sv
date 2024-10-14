@@ -18,7 +18,7 @@ module vec_csr_regfile (
     input   logic                   csrwr_en,
 
     // vec_csr_regs ->
-    output  logic   [4:0]           vlmul,
+    output  logic   [3:0]           vlmul,
     output  logic   [6:0]           sew,
     output  logic   [9:0]           vlmax,
     output  logic                   tail_agnostic,    // vector tail agnostic
