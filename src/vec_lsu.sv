@@ -1,12 +1,7 @@
 module vec_lsu #(
     XLEN    = 32,       // scalar processor width
     VLEN    = 512,      // 512-bits in a vector register
-    //VLMAX   = 16,       // Max. number of elements
-    SEW     = 32,       // 32-bits per element
-    LMUL    = 1,        // grouping
-    MAX_VLEN = 4096,
-
-    DATAWIDTH = $clog2(SEW)
+    MAX_VLEN = 4096
 ) (
     input logic                     clk,
     input logic                     n_rst,
@@ -15,8 +10,9 @@ module vec_lsu #(
     input logic [XLEN-1:0]          rs1_data,       // base_address
     input logic [XLEN-1:0]          rs2_data,       // constant strided number
 
-    // 
+    // csr_regfile --> vec_lsu
     input logic [9:0]               vlmax,          // maximum no. of elements in a vector
+    input logic [6:0]               sew,
 
     // vector_processor_controller -> vec_lsu
     input logic                     stride_sel,     // selection for unit strided load
@@ -28,14 +24,13 @@ module vec_lsu #(
 
     // vec_lsu -> main_memory
     output logic [XLEN-1:0]         lsu2mem_addr,
-    output logic                    ld_req,         // request the memory to load data
-    output logic                    st_req,         // request the memory to store data
-    
+    output logic                    ld_req,
+
     // main_memory -> vec_lsu
-    input logic [SEW-1:0]           mem2lsu_data,
+    input logic [XLEN-1:0]           mem2lsu_data,
 
     // vec_lsu  -> vec_register_file
-    output logic [VLEN-1:0]     vd_data,         // destination vector data
+    output logic [MAX_VLEN-1:0]     vd_data,         // destination vector data
     output logic                    is_loaded        // after getting the total elements is_loaded must on
 );
 
@@ -43,8 +38,8 @@ logic [XLEN-1:0]                stride_mux;
 logic [XLEN-1:0]                stride_add;
 logic [XLEN-1:0]                element_strt;
 
-logic [((VLEN/SEW)*LMUL)-1:0]   count_el;           // count elements
-logic [((VLEN/SEW)*LMUL)-1:0]   add_el;             // add 1 in count elements
+logic [$clog2(VLEN):0]        count_el;           // count elements
+logic [$clog2(VLEN):0]        add_el;             // add 1 in count elements
 logic                           count_en;           // start counting the elements when load instruction
 logic                           data_en;
 logic                           stride_en;
@@ -55,12 +50,18 @@ logic [XLEN-1:0]                loaded_data [0:VLEN-1];
 // store overall data in some buffur
 always_ff @(posedge clk or negedge n_rst) begin
     if (!n_rst) begin
-        for (int i=0; i<VLEN; i++) begin
+        for (int i=0; i<MAX_VLEN; i++) begin
             loaded_data[i] <= '0;
         end
     end
     else if (data_en) begin
-        loaded_data[count_el] <= mem2lsu_data;  //TODO first element issue
+        case (sew)
+            7'd8: loaded_data[count_el] <= mem2lsu_data[7:0];
+            7'd16:loaded_data[count_el] <= mem2lsu_data[15:0];
+            7'd32:loaded_data[count_el] <= mem2lsu_data[31:0];
+            //7'd64:loaded_data[count_el] <= mem2lsu_data;
+            default: loaded_data[count_el] <= mem2lsu_data;
+        endcase
     end
     else begin
         for (int i=0; i<vlmax; i++) begin
@@ -69,13 +70,11 @@ always_ff @(posedge clk or negedge n_rst) begin
     end
 end
 
-//assign vd_data = (is_loaded) ? loaded_data[] :  '0;
 always_comb begin
     if (is_loaded) begin
-        vd_data = { '0,loaded_data[15], loaded_data[14], loaded_data[13], loaded_data[12],
-                    loaded_data[11], loaded_data[10], loaded_data[09], loaded_data[08],
-                    loaded_data[07], loaded_data[06], loaded_data[05], loaded_data[04],
-                    loaded_data[03], loaded_data[02], loaded_data[01], loaded_data[00]};
+        for (int i=0; i<vlmax; i++) begin
+            vd_data = vd_data | (loaded_data[i] << (i*sew));
+        end
     end
     else begin
         vd_data = '0;
@@ -84,7 +83,7 @@ end
 
 /*  Datapath    */
 // mux for unit/constant strided
-assign stride_mux = (stride_sel) ? (SEW/8) : rs2_data;
+assign stride_mux = (stride_sel) ? (sew/8) : $unsigned(rs2_data[7:0]);
 
 // stride register retain the value of stride
 always_ff @(posedge clk or negedge n_rst) begin
@@ -161,9 +160,11 @@ always_comb begin
             stride_en = 1'b1;
             if (ld_inst) begin 
                 count_en  = 1'b1;
+                ld_req    = 1'b1;
             end
             else         begin 
                 count_en  = 1'b0;
+                ld_req    = 1'b0;
             end 
         end
         LOAD: begin
@@ -171,10 +172,11 @@ always_comb begin
             stride_en = 1'b0;
             if (is_loaded)  begin 
                 count_en  = 1'b0;
-                
+                ld_req    = 1'b0;
             end
             else begin 
                 count_en  = 1'b1;
+                ld_req    = 1'b1;
             end
         end
         default: begin
@@ -182,6 +184,7 @@ always_comb begin
             data_en   = 1'b0;
             count_en  = 1'b0;
             stride_en = 1'b0;
+            ld_req    = 1'b0;
         end 
     endcase
 end
