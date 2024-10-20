@@ -72,14 +72,11 @@ The **Vector Load/Store Unit (VLSU)** operates in various modes to handle memory
 - **Gather**: 
   - The **next address** is calculated as `previous address + vs[i]`, where `vs[i]` holds the vector of address offsets for each element.
 
-### Block Diagrams
+### Modes
 
 #### 1. **Unit Stride**
 - **Description**: 
-  - In **Unit Stride**, memory addresses for vector elements are accessed in contiguous order (i.e., the next element address is incremented by 1 from the previous address).
-  
-- **Block Diagram**:
-  ![VLSU Unit Stride Block Diagram](/docs/vector_processor_docs/unit_stride_datapath.png)
+    - In **Unit Stride**, memory addresses for vector elements are accessed in contiguous order (i.e., the next element address is incremented by 1 from the previous address).
 
 #### 2. **Stride**
 - **Description**: 
@@ -88,10 +85,28 @@ The **Vector Load/Store Unit (VLSU)** operates in various modes to handle memory
 #### 3. **Gather**
 - **Description**: 
   - In **Gather Mode**, each memory element has a unique address offset, defined by the values in the `vs` vector register. This is used for gathering elements from scattered memory locations.
+
+
+### Block Diagrams Overview
+
+This section provides block diagrams for both the **Datapath** and the **Controller** of the system.
+#### 1. **Datapath Block Diagram**
+
+- **Description**:  
+  The **Datapath** handles the memory access in **Unit Stride** and **Stride** modes, which can be seen below.
   
+- **Block Diagram**:
+  ![VLSU Datapath Block Diagram](/docs/vector_processor_docs/vlsu_datapath.png)
+
+#### 2. **Controller Block Diagram**
+
+- **Description**:  
+  The **Controller** is responsible for coordinating the memory access modes, including both **Unit Stride** and **Stride Mode**. It ensures that the memory access patterns, either contiguous or non-contiguous, are executed correctly based on the stride value stored in the `rs2` register.
+
+- **Block Diagram**:
+  ![Controller Block Diagram](/docs/vector_processor_docs/vlsu_controller.png)
+
 # Getting Started
-
-
 
 ## Installation of Vivado  
 
