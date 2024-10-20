@@ -24,8 +24,9 @@ module vec_lsu #(
 
     // vec_lsu -> main_memory
     output logic [XLEN-1:0]         lsu2mem_addr,
-    output logic                    ld_req,
-
+    output logic                    ld_req,         // request the memory to load data
+    
+    
     // main_memory -> vec_lsu
     input logic [XLEN-1:0]           mem2lsu_data,
 
