@@ -96,7 +96,8 @@ This section provides block diagrams for both the **Datapath** and the **Control
   The **Datapath** handles the memory access in **Unit Stride** and **Stride** modes, which can be seen below.
   
 - **Block Diagram**:
-  ![VLSU Datapath Block Diagram](/docs/vector_processor_docs/vlsu_datapath.png)
+
+  ![VLSU Datapath Block Diagram](/docs/vlsu_docs/vlsu_datapath.png)
 
 #### 2. **Controller Block Diagram**
 
@@ -104,7 +105,8 @@ This section provides block diagrams for both the **Datapath** and the **Control
   The **Controller** is responsible for coordinating the memory access modes, including both **Unit Stride** and **Stride Mode**. It ensures that the memory access patterns, either contiguous or non-contiguous, are executed correctly based on the stride value stored in the `rs2` register.
 
 - **Block Diagram**:
-  ![Controller Block Diagram](/docs/vector_processor_docs/vlsu_controller.png)
+
+  ![Controller Block Diagram](/docs/vlsu_docs/vlsu_controller.png)
 
 # Getting Started
 
