@@ -5,9 +5,7 @@
 `include "../define/vector_processor_defs.svh"
 `include "../define/vec_regfile_defs.svh"
 
-module vector_processor_datapth #(
-    parameter SEW = 32
-)(
+module vector_processor_datapth (
     
     input   logic   clk,reset,
     
@@ -17,12 +15,12 @@ module vector_processor_datapth #(
     input   logic   [`XLEN-1:0]             rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
     //Inputs from main_memory -> vec_lsu
-    input   logic   [`MEM_DATA_WIDTH-1:0]   mem2lsu_data,
+    input   logic   [`XLEN-1:0]             mem2lsu_data,
 
     // Output from  vec_lsu -> main_memory
     output  logic   [`XLEN-1:0]             lsu2mem_addr,       // Gives the memory address to load or store data
     output  logic                           ld_req,             // load request signal to the memory
-    output  logic                           st_req,             // store request signal to the memory
+    //output  logic                           st_req,             // store request signal to the memory
 
     // Outputs from vector rocessor --> scaler processor
     output  logic                           is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
@@ -282,12 +280,16 @@ assign inst_done = data_written || csr_done;
 
         // vec_decode -> vec_lsu
         .mew            (mew                        ),          
-        .width          (width                      ),      
+        .width          (width                      ),
+
+        // vec_csr --> vec_lsu
+        .sew            (sew                        ),
+        .vlmax          (vlmax                      ),      
 
         // vec_lsu -> main_memory
         .lsu2mem_addr   (lsu2mem_addr               ),
         .ld_req         (ld_req                     ),
-        .st_req         (st_req                     ),
+      //.st_req         (st_req                     ),
 
         // main_memory -> vec_lsu
         .mem2lsu_data   (mem2lsu_data               ),
