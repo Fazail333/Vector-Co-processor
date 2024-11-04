@@ -4,10 +4,8 @@
 
 `include "../define/vector_processor_defs.svh"
 
-module vector_processor#(
-    parameter SEW = 32
-)(
-
+module vector_processor(
+    
     input   logic   clk,reset,
     
     // Inputs from the scaler processor  --> vector processor
@@ -25,10 +23,10 @@ module vector_processor#(
 
     // Output from vector processor lsu --> memory
     output  logic                       ld_req,                 // load request signal to the memory
-    output  logic                       st_req,                 // store request signal to the memory
+   // output  logic                       st_req,                 // store request signal to the memory
 
     //Inputs from main_memory -> vec_lsu
-    input   logic   [`MEM_DATA_WIDTH-1:0]mem2lsu_data,           // data from the memory to lsu in case of load
+    input   logic   [`XLEN-1:0]         mem2lsu_data,           // data from the memory to lsu in case of load
 
     // Output from  vec_lsu -> main_memory
     output  logic   [`XLEN-1:0]         lsu2mem_addr,           // address from lsu to memory in case of the load
@@ -85,7 +83,7 @@ logic                inst_done;
         
         // Output from vector processor lsu --> memory
         .ld_req             (ld_req         ),
-        .st_req             (st_req         ),
+      //  .st_req             (st_req         ),
         
         
         //Inputs from main_memory -> vec_lsu
