@@ -31,12 +31,12 @@ logic   [4:0]       rs1_addr;
 logic   [4:0]       rs2_addr;
 
  //Inputs from main_memory -> vec_lsu
-logic   [`MEM_DATA_WIDTH-1:0]   mem2lsu_data;
+logic   [`XLEN-1:0]   mem2lsu_data;
 
     // Output from  vec_lsu -> main_memory
 logic   [`XLEN-1:0] lsu2mem_addr;
 logic               ld_req;           
-logic               st_req;           
+//logic               st_req;           
    
 // Register file to hold scalar register values (can be initialized as needed)
 logic [`XLEN-1:0] scalar_regfile [31:0];
@@ -97,7 +97,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
         // Output from vector processor lsu --> memory
         .ld_req             (ld_req             ),
-        .st_req             (st_req             ),
+      //  .st_req             (st_req             ),
          
         
         //Inputs from main_memory -> vec_lsu
@@ -151,9 +151,8 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
             fork
                 
                 driver(i);
-                memory_data_fetch();
                 monitor();
-
+                
             join
         end
 
@@ -167,6 +166,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         rs1_data        = 'h0;
         rs2_data        = 'h0;
         instruction    	= 'h0;
+
 
     endtask 
 
@@ -216,13 +216,13 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
     // and if not then it should replace each element with the destination register element corresponding to that element based on the sew .
 
     task memory_data_fetch();
-        
+    
         int sew;                                            // Element width (from CSR)
         sew = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.sew;    
         
 
         // New load instruction detected: reset step flags and loop index
-        if (VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst && instruction != current_instruction) begin
+        if ((VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst) && (instruction != current_instruction)) begin
             step1_done = 0;
             step3_done = 0;
             i = 0;
@@ -233,39 +233,58 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         end
         
         if (VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst)begin
-            
+            $display("Entering Load");
             // If the masking is enabled 
             if (!instruction[25])begin
-                
+                $display("Load with masking");
                 while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
+                    @(posedge clk);
                     if (ld_req)begin
-                        mem2lsu_data = dummy_mem[lsu2mem_addr];
+                        mem2lsu_data = {dummy_mem[lsu2mem_addr+3],dummy_mem[lsu2mem_addr+2],
+                                        dummy_mem[lsu2mem_addr+1],dummy_mem[lsu2mem_addr]};
+
+                       // $display("LSU Address: %0h, Dummy Mem Contents: %h %h %h %h", lsu2mem_addr,
+                        //dummy_mem[lsu2mem_addr+3], dummy_mem[lsu2mem_addr+2],
+                         //dummy_mem[lsu2mem_addr+1], dummy_mem[lsu2mem_addr]);
+                        
+
+
                         vector_load_with_masking();
                     end
                 end
             end
             // If masking is not enabled
             else begin
-                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
+
+                $display("Load with not masking");
+                   
+               while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded)) begin
+                    // Monitor the load request (ld_req) at every positive edge of the clock
+                    @(posedge clk);
 
                     // Dynamic data load logic for `loaded_data` based on the element width (sew).
                     // Direct bit-slicing using variable `sew` is avoided due to simulator constraints.
                     // Loop to handle loading data from memory when masking is not enabled.
                     // Instead of assigning variable-width slices dynamically, load each bit of the element.
-                   
-                   if (ld_req) begin
-                        mem2lsu_data = dummy_mem[lsu2mem_addr];
-                        for (int idx = 0; idx < sew; idx++) begin
+                    if (ld_req) begin
+                        // Fetch the memory data for the current address immediately
+                        mem2lsu_data <= {dummy_mem[lsu2mem_addr+3], dummy_mem[lsu2mem_addr+2],
+                                        dummy_mem[lsu2mem_addr+1], dummy_mem[lsu2mem_addr]};
 
-                            // Assign each bit from memory to the appropriate position in `loaded_data`
+                        // Display memory fetch information for verification
+                        $display("LSU Address: %0h, Dummy Mem Contents: %h %h %h %h", lsu2mem_addr,
+                                dummy_mem[lsu2mem_addr+3], dummy_mem[lsu2mem_addr+2],
+                                dummy_mem[lsu2mem_addr+1], dummy_mem[lsu2mem_addr]);
+
+                        // Load each bit from the fetched data into `loaded_data`
+                        for (int idx = 0; idx < sew; idx++) begin
                             loaded_data[(i * sew) + idx] = mem2lsu_data[idx];
                         end
+
                         i++; // Increment index for the next element
                     end
-
-                end             
-            end
-            
+                end
+            end      
         end
         
     endtask
@@ -379,6 +398,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
     
         begin
             $readmemh("/home/zawaher-bin-asim/Vector-Co-processor/test/instruction_mem.txt", inst_mem);
+            $display("Next Instruction");
             instruction = inst_mem[address];        // Fetch instruction from memory
             rs1_addr = instruction[19:15];          // Decode rs1 address
             rs2_addr = instruction[24:20];          // Decode rs2 address
@@ -404,13 +424,15 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         end
         
         inst_valid <= 1'b0;
-        @(posedge clk);
+        
+    
     
     endtask
 
     task driver(input int i );
         
         instruction_issue(i);
+        memory_data_fetch();
        
     endtask
  
@@ -442,6 +464,8 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
 
             scalar_pro_ready <= 1'b0;
             
+            $display("Start monitoring");
+    
          // Lets monitor the output by looking into the registers whether the instruction has been successfully implemented or not
 
             case (vopcode)
@@ -556,16 +580,18 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                     
                     if (loaded_data == vec_reg_data) begin
                         $display("======================= TEST PASSED ==========================");
-                        $display("Loaded DATA : %d", vec_reg_data);
+                        $display("Loaded DATA : %h", vec_reg_data);
                     end
                     else begin
                         $display("======================= TEST FAILED ==========================");
-                        $display("ACTUAL LOADED DATA : %d",vec_reg_data);
-                        $display("EXPECTED_LOADED DATA : %d",loaded_data);
+                        $display("ACTUAL LOADED DATA : %h",vec_reg_data);
+                        $display("EXPECTED_LOADED DATA : %h",loaded_data);
                     end 
                 end 
                 default:  ;  
             endcase
+            $display("END MONITORING");
+            
         end
     endtask
 
