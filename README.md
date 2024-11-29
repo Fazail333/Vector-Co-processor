@@ -11,4 +11,4 @@
 ![Block_Diagram](/docs/vector_processor_docs/vector_processor_block_diagram.drawio.png)
 
 ## DATAPATHS AND CONTROLLERS
-[Diagrams]([https://drive.google.com/file/d/1kGnXXBOggFuhIXVOhCJCsGAB2e16ofJt/view?usp=drive_link](https://drive.google.com/file/d/1kGnXXBOggFuhIXVOhCJCsGAB2e16ofJt/view?usp=drive_link))
+[Diagrams](https://drive.google.com/file/d/1kGnXXBOggFuhIXVOhCJCsGAB2e16ofJt/view?usp=drive_link)
