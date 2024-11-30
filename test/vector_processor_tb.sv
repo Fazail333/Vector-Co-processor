@@ -73,8 +73,8 @@ logic [`MAX_VLEN-1:0]loaded_data;                   // loaded data for compariso
 
 v_opcode_e      vopcode;
 v_func3_e       vfunc3;
-assign vopcode  = v_opcode_e'(instruction[6:0]);
-assign vfunc3   = v_func3_e'(instruction[14:12]);
+assign vopcode  = v_opcode_e'(VECTOR_PROCESSOR.inst_reg_instruction[6:0]);
+assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
 
 
     vector_processor VECTOR_PROCESSOR(
@@ -222,11 +222,11 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         
 
         // New load instruction detected: reset step flags and loop index
-        if ((VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst) && (instruction != current_instruction)) begin
+        if ((VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst) && (VECTOR_PROCESSOR.inst_reg_instruction != current_instruction)) begin
             step1_done = 0;
             step3_done = 0;
             i = 0;
-            current_instruction = instruction; // Update to the new instruction
+            current_instruction = VECTOR_PROCESSOR.inst_reg_instruction; // Update to the new instruction
             // Initializing loaded data
             loaded_data = 'h0;
 
@@ -235,7 +235,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         if (VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst)begin
             $display("Entering Load");
             // If the masking is enabled 
-            if (!instruction[25])begin
+            if (!VECTOR_PROCESSOR.inst_reg_instruction[25])begin
                 $display("Load with masking");
                 while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
                     @(posedge clk);
@@ -260,7 +260,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                    
                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded)) begin
                     // Monitor the load request (ld_req) at every positive edge of the clock
-                    @(posedge clk);
+                   //@(posedge clk);
 
                     // Dynamic data load logic for `loaded_data` based on the element width (sew).
                     // Direct bit-slicing using variable `sew` is avoided due to simulator constraints.
@@ -282,7 +282,8 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                         end
 
                         i++; // Increment index for the next element
-                    end
+                   end
+                    @(posedge clk);
                 end
             end      
         end
@@ -411,7 +412,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
     // It will issue the instruction
     task  instruction_issue(input int z);
 
-            
+
         // Fetching the instruction + data
         instruction_fetch(z);
 
@@ -422,10 +423,8 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         while (!vec_pro_ready)begin
             @(posedge clk );
         end
-        
         inst_valid <= 1'b0;
-        
-    
+
     
     endtask
 
@@ -446,7 +445,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
         
         logic [`MAX_VLEN-1:0] vec_reg_data;
 
-        vec_reg_addr = instruction[11:7];
+        assign vec_reg_addr =  VECTOR_PROCESSOR.inst_reg_instruction[11:7];
 
         @(posedge clk);
         if (!is_vec)begin
@@ -463,7 +462,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
             end 
 
             scalar_pro_ready <= 1'b0;
-            
+    
             $display("Start monitoring");
     
          // Lets monitor the output by looking into the registers whether the instruction has been successfully implemented or not
@@ -476,10 +475,10 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                         
                         // vector configuration instructions
                         CONF: begin
-                            case (instruction[31]== 1)
+                            case (VECTOR_PROCESSOR.inst_reg_instruction[31]== 1)
                             // VSETVLI
                                 1'b0: begin
-                                    if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == instruction[30:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == rs1_data) )begin
+                                    if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[30:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_rs1_data) )begin
                                         $display("======================= TEST PASSED ==========================");
                                         $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                         $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
@@ -487,18 +486,18 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                                     else begin
                                         $display("======================= TEST FAILED ==========================");
                                         $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
-                                        $display("EXPECTED_VTYPE Value : %d",instruction[30:20]);
+                                        $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[30:20]);
                                         $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
-                                        $display("EXPECTED_VL Value : %d",rs1_data);
+                                        $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.inst_reg_rs1_data);
                                         
                                     end
                                     
                                 end
                                 1'b1: begin
-                                    case (instruction[30]== 1)
+                                    case (VECTOR_PROCESSOR.inst_reg_instruction[30]== 1)
                                     // VSETIVLI
                                         1'b1: begin
-                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == instruction[29:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == instruction[19:15]) )begin
+                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[29:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_instruction[19:15]) )begin
                                                 $display("======================= TEST PASSED ==========================");
                                                 $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                                 $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
@@ -506,9 +505,9 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                                             else begin
                                                 $display("======================= TEST FAILED ==========================");
                                                 $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
-                                                $display("EXPECTED_VTYPE Value : %d",instruction[29:20]);
+                                                $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[29:20]);
                                                 $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
-                                                $display("EXPECTED_VL Value : %d",instruction[19:15]);
+                                                $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[19:15]);
                                                 
                                             end
 
@@ -516,7 +515,7 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                                     // VSETVL
                                         1'b0: begin
                                             
-                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == rs2_data) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == rs1_data) )begin
+                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_rs2_data) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_rs1_data) )begin
                                                 $display("======================= TEST PASSED ==========================");
                                                 $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                                 $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
@@ -524,9 +523,9 @@ assign vfunc3   = v_func3_e'(instruction[14:12]);
                                             else begin
                                                 $display("======================= TEST FAILED ==========================");
                                                 $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
-                                                $display("EXPECTED_VTYPE Value : %d",rs2_data);
+                                                $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_rs2_data);
                                                 $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
-                                                $display("EXPECTED_VL Value : %d",rs1_data);
+                                                $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.inst_reg_rs1_data);
                                                 
                                             end
                                             
