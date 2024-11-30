@@ -58,6 +58,17 @@ assign csr_addr = csr_reg_e'(inst [31:20]);
 //  Vector Configuration  //
 ////////////////////////////
 
+logic csrwr_en_d; // Delayed version of csrwr_en
+
+// Sequential block to store the previous value of csrwr_en
+always_ff @(posedge clk or negedge n_rst) begin
+    if (!n_rst) begin
+        csrwr_en_d <= 1'b0;
+    end else begin
+        csrwr_en_d <= csrwr_en; // Store current state of csrwr_en
+    end
+end
+
 always_ff @(posedge clk, negedge n_rst) begin
     if (!n_rst) begin
         csr_vtype_q.ill       <= 1;
@@ -69,7 +80,7 @@ always_ff @(posedge clk, negedge n_rst) begin
         csr_vl_q              <= '0;
         csr_done              <= '0;
     end
-    else if (csrwr_en) begin
+    else if (csrwr_en && !csrwr_en_d) begin
         csr_vtype_q.ill   <= '0;
         csr_vtype_q.vma   <= scalar2[7];
         csr_vtype_q.vta   <= scalar2[6];
