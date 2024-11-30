@@ -85,6 +85,7 @@ always_comb begin
 
         WAIT_READY : begin
             vec_pro_ack = 1'b1;
+            vec_pro_ready = 1'b0;
         end
 
         default: begin
