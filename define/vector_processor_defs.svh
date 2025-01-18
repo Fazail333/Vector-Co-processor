@@ -12,8 +12,9 @@
 `define VLEN 512
 // The width of the data signals . it depends  upon the "VLEN * max(lmul)" here the max of lmul is 8 
 `define MAX_VLEN 4096
-// The width of the memory data
-`define MEM_DATA_WIDTH 8
+// The width of the memory data bus
+`define DATA_BUS 128
+
 
 typedef enum logic [1:0]{  
     IDLE,
