@@ -62,7 +62,10 @@ logic   [1:0]        data_mux1_sel;      // This the selsction of the mux to sel
 logic                data_mux2_sel;      // This the selsction of the mux to select between scaler2 , and vec_data2
 
 // vec_control_signals -> vec_lsu
-logic                stride_sel;         // tells that  it is a unit stride or the indexed
+logic                stride_sel;         // tells that  it is a unit stride or the constant stride
+logic                ld_inst;            // tells about load instruction
+logic                st_inst;            // tells about store instruction
+logic                index_str;          // tells about indexed strided load/store
 
 // datapath --> val_ready_controller
 logic                inst_done;
@@ -126,7 +129,9 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
 
         // vec_control_signals -> vec_lsu
         .stride_sel         (stride_sel     ),
-        .ld_inst            (ld_inst        ) 
+        .ld_inst            (ld_inst        ),
+        .st_inst            (st_inst        ),
+        .index_str          (index_str      ) 
 
         
     );
@@ -158,7 +163,9 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
 
         // vec_control_signals -> vec_lsu
         .stride_sel         (stride_sel     ),
-        .ld_inst            (ld_inst        ) 
+        .ld_inst            (ld_inst        ),
+        .st_inst            (st_inst        ),
+        .index_str          (index_str      )
 
     );
 

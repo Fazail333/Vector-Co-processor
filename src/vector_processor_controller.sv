@@ -28,8 +28,10 @@ module vector_processor_controller (
     output  logic                data_mux2_sel,      // This the selsction of the mux to select between scaler2 , and vec_data2
 
     // vec_control_signals -> vec_lsu
-    output  logic                stride_sel,         // tells that  it is a unit stride or the indexed
-    output  logic                ld_inst             // tells that it is load insruction or store one
+    output  logic                stride_sel,         // tells about unit stride
+    output  logic                ld_inst,            // tells about load insruction
+    output  logic                st_inst,            // tells about store instruction 
+    output  logic                index_str           // tells about the indexed stride
 );
 
 v_opcode_e      vopcode;
@@ -56,7 +58,10 @@ always_comb begin
     data_mux1_sel   = 2'b00;
     data_mux2_sel   = 1'b0;
     stride_sel      = 1'b0;
-    ld_inst         = 1'b0;  
+    ld_inst         = 1'b0;
+    st_inst         = 1'b0;
+    index_str       = 1'b0;
+    
     case (vopcode)
     V_ARITH: begin
         case (vfunc3)
@@ -132,53 +137,88 @@ always_comb begin
         vec_reg_wr_en   = 1;
         mask_operation  = 0;
         mask_wr_en      = 0;
-        data_mux1_sel   = 2'b01;
-        data_mux2_sel   = 1'b1;
-        stride_sel      = 1'b1;
+        //data_mux1_sel   = 2'b01;
+        //data_mux2_sel   = 1'b1;
+        //stride_sel      = 1'b1;
         ld_inst         = 1'b1;
+        st_inst         = 1'b0;
+        index_str       = 1'b0;
+                
+        vtype_sel       = 1;        // 1 or 0 don't care
+        lumop_sel       = 1;        // 1 or 0 don't care   
         
         case (mop)
-            2'b00: begin
-                stride_sel      = 1;        // unit stride
-                vtype_sel       = 1;        // 1 or 0 don't care
-                lumop_sel       = 1; 
+            2'b00: begin // unit-stride
+                stride_sel      = 1'b1;     // unit stride
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b1;     // scaler2      
             end
-            2'b01: begin
-                
-                vtype_sel       = 1;        // 1 or 0 don't care
-                lumop_sel       = 1;        // 1 or 0 don't care    
+            2'b01: begin // indexed stride unordered
+                index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b0;     // vec_data_2 
             end
-            2'b10: begin
-                vtype_sel = '0;
-                lumop_sel = '0;
+            2'b10: begin // strided
+                stride_sel      = 1'b0;     // constant stride
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b1;     // scaler2
             end
-            2'b11: begin
-                
-                vtype_sel       = 1;        // 1 or 0 don't care
-                lumop_sel       = 1;        // 1 or 0 don't care
+            2'b11: begin // indexed stride ordered
+                index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b0;     // vec_data_2
             end
             default: begin
-                rs1_sel         = 1;
-                vl_sel          = 1;
-                rs1rd_de        = 1;
-                vtype_sel       = 1;
-                lumop_sel       = 0;
-                vec_reg_wr_en   = 1;
-                mask_operation  = 0;
-                mask_wr_en      = 0;
-                data_mux1_sel   = 2'b01;   
-                data_mux2_sel   = 1'b1;
-                stride_sel      = 1'b1;
-                ld_inst         = 1'b1;
-    
+                index_str       = 1'b0;
+                data_mux1_sel   = 2'b01;    // scaler1
+                data_mux2_sel   = 1'b01;    // scalar_2
+                stride_sel      = 1'b1;     // unit stride
+            end
+        endcase
+    end
+    V_STORE: begin
+        rs1_sel         = 1;        // selection for base address
+        vl_sel          = 0;
+        rs1rd_de        = 1;
+        vec_reg_wr_en   = 1;
+        mask_operation  = 0;
+        mask_wr_en      = 0;
+        //data_mux1_sel   = 2'b01;
+        //data_mux2_sel   = 1'b1;
+        //stride_sel      = 1'b1;
+        ld_inst         = 1'b0;
+        st_inst         = 1'b1;
+        //index_str       = 1'b0;
+                
+        vtype_sel       = 1;        // 1 or 0 don't care
+        lumop_sel       = 1;        // 1 or 0 don't care   
+        
+        case (mop)
+            2'b00: begin // unit-stride
+                stride_sel      = 1'b1;     // unit stride
+                data_mux1_sel   = 2'b01;    // scaler1
+                data_mux2_sel   = 1'b1;     // scaler2      
+            end
+            2'b01: begin // indexed stride unordered
+                index_str       = 1'b1;
+                data_mux1_sel   = 2'b01;    // scaler1
+                data_mux2_sel   = 1'b0;     // vec_data_2 
+            end
+            2'b10: begin // strided
+                stride_sel      = 1'b0;     // constant stride
+                data_mux1_sel   = 2'b01;    // scaler1
+                data_mux2_sel   = 1'b1;     // scaler2
+            end
+            2'b11: begin // indexed stride ordered
+                index_str       = 1'b1;
+                data_mux1_sel   = 2'b01;    // scaler1
+                data_mux2_sel   = 1'b0;     // vec_data_2
+            end
+            default: begin
+                index_str       = 1'b0;
+                data_mux1_sel   = 2'b01;    // scaler1
+                data_mux2_sel   = 1'b01;    // scalar_2
+                stride_sel      = 1'b1;     // unit stride
             end
         endcase
     end

@@ -12,7 +12,8 @@ parameter CSR_ADDR = 12;
 
 typedef enum logic [6:0] {
     V_ARITH = 7'h57,
-    V_LOAD  = 7'h07
+    V_LOAD  = 7'h07,
+    V_STORE = 7'h27
 } v_opcode_e;
 
 typedef enum logic [2:0] {
