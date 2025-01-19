@@ -54,8 +54,10 @@ module vector_processor_datapth (
     input   logic                           data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
 
     // vec_control_signals -> vec_lsu
-    input   logic                           stride_sel,         // tells that  it is a unit stride or the indexed
-    input   logic                           ld_inst             // tells that it is load insruction or store one
+    input   logic                           stride_sel,         // tells that  it is a unit stride or the contant stride
+    input   logic                           ld_inst,            // tells that it is load insruction
+    input   logic                           st_inst,            // tells that it is store insruction
+    input   logic                           index_str           // tells about indexed store/load
 
 );
 
@@ -277,6 +279,8 @@ assign inst_done = data_written || csr_done;
         // vector_processor_controller -> vec_lsu
         .stride_sel     (stride_sel                 ), 
         .ld_inst        (ld_inst                    ),      
+        .st_inst        (st_inst                    ),
+        .index_str      (index_str                  ),
 
         // vec_decode -> vec_lsu
         .mew            (mew                        ),          
