@@ -16,10 +16,14 @@ module vector_processor_datapth (
 
     //Inputs from main_memory -> vec_lsu
     input   logic   [`DATA_BUS-1:0]         mem2lsu_data,
+    input   logic   [`DATA_BUS-1:0]         mem2lsu_data,
 
     // Output from  vec_lsu -> main_memory
     output  logic   [`XLEN-1:0]             lsu2mem_addr,       // Gives the memory address to load or store data
     output  logic                           ld_req,             // load request signal to the memory
+    output  logic                           st_req,             // store request signal to the memory
+    output  logic   [`DATA_BUS-1:0]         lsu2mem_data,       // Data to be stored
+    output  logic   [WR_STROB-1:0]          wr_strobe,          // THE bytes of the DATA_BUS that contains the actual data 
     output  logic                           st_req,             // store request signal to the memory
     output  logic   [`DATA_BUS-1:0]         lsu2mem_data,       // Data to be stored
     output  logic   [WR_STROB-1:0]          wr_strobe,          // THE bytes of the DATA_BUS that contains the actual data 
@@ -60,7 +64,7 @@ module vector_processor_datapth (
     input   logic                           ld_inst             // tells that it is load insruction or store one
     input   logic                           st_inst,            // Store instruction
     input   logic                           index_str,          // tells about index stride
-    input   logic                          index_unordered     //TODO tells about index unordered stride
+     input   logic                          index_unordered     // tells about index unordered stride
 );
 
 
@@ -288,6 +292,7 @@ assign inst_done = data_written || csr_done;
         .st_inst        (st_inst                    ),
         .index_str      (index_str                  ),
         .index_unordered(index_unordered            ),
+        .index_unordered(index_unordered            ),
 
         // vec_decode -> vec_lsu
         .mew            (mew                        ),          
@@ -301,10 +306,18 @@ assign inst_done = data_written || csr_done;
         .vs2_data       (data_mux2_out              ),       
         .vs3_data       (dst_vec_data               ),      
         
+
+        // vec_register_file -> vec_lsu
+        .vs2_data       (data_mux2_out              ),       
+        .vs3_data       (dst_vec_data               ),      
+        
         // vec_lsu -> main_memory
         .lsu2mem_addr   (lsu2mem_addr               ),
         .lsu2mem_data   (lsu2mem_data               ),   
+        .lsu2mem_data   (lsu2mem_data               ),   
         .ld_req         (ld_req                     ),
+        .st_req         (st_req                     ),
+        .wr_strobe      (wr_strobe                  ), 
         .st_req         (st_req                     ),
         .wr_strobe      (wr_strobe                  ), 
 
