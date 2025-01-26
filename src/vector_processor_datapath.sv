@@ -15,12 +15,14 @@ module vector_processor_datapth (
     input   logic   [`XLEN-1:0]             rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
     //Inputs from main_memory -> vec_lsu
-    input   logic   [`XLEN-1:0]             mem2lsu_data,
+    input   logic   [`DATA_BUS-1:0]         mem2lsu_data,
 
     // Output from  vec_lsu -> main_memory
     output  logic   [`XLEN-1:0]             lsu2mem_addr,       // Gives the memory address to load or store data
     output  logic                           ld_req,             // load request signal to the memory
-    //output  logic                           st_req,             // store request signal to the memory
+    output  logic                           st_req,             // store request signal to the memory
+    output  logic   [`DATA_BUS-1:0]         lsu2mem_data,       // Data to be stored
+    output  logic   [WR_STROB-1:0]          wr_strobe,          // THE bytes of the DATA_BUS that contains the actual data 
 
     // Outputs from vector rocessor --> scaler processor
     output  logic                           is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
@@ -54,11 +56,11 @@ module vector_processor_datapth (
     input   logic                           data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
 
     // vec_control_signals -> vec_lsu
-    input   logic                           stride_sel,         // tells that  it is a unit stride or the contant stride
-    input   logic                           ld_inst,            // tells that it is load insruction
-    input   logic                           st_inst,            // tells that it is store insruction
-    input   logic                           index_str           // tells about indexed store/load
-
+    input   logic                           stride_sel,         // tells that  it is a unit stride or the indexed
+    input   logic                           ld_inst             // tells that it is load insruction or store one
+    input   logic                           st_inst,            // Store instruction
+    input   logic                           index_str,          // tells about index stride
+     input   logic                          index_unordered     // tells about index unordered stride
 );
 
 
@@ -281,6 +283,7 @@ assign inst_done = data_written || csr_done;
         .ld_inst        (ld_inst                    ),      
         .st_inst        (st_inst                    ),
         .index_str      (index_str                  ),
+        .index_unordered(index_unordered            ),
 
         // vec_decode -> vec_lsu
         .mew            (mew                        ),          
@@ -290,10 +293,16 @@ assign inst_done = data_written || csr_done;
         .sew            (sew                        ),
         .vlmax          (vlmax                      ),      
 
+        // vec_register_file -> vec_lsu
+        .vs2_data       (data_mux2_out              ),       
+        .vs3_data       (dst_vec_data               ),      
+        
         // vec_lsu -> main_memory
         .lsu2mem_addr   (lsu2mem_addr               ),
+        .lsu2mem_data   (lsu2mem_data               ),   
         .ld_req         (ld_req                     ),
-      //.st_req         (st_req                     ),
+        .st_req         (st_req                     ),
+        .wr_strobe      (wr_strobe                  ), 
 
         // main_memory -> vec_lsu
         .mem2lsu_data   (mem2lsu_data               ),

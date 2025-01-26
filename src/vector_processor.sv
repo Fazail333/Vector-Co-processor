@@ -18,18 +18,20 @@ module vector_processor(
     input   logic                       scalar_pro_ready,       // tells that scaler processor is ready to take output
 
 
-    // Outputs from vector rocessor --> scaler processor
+    // Outputs from vector processor --> scaler processor
     output  logic                       is_vec,                 // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
 
     // Output from vector processor lsu --> memory
+    output  logic   [`XLEN-1:0]         lsu2mem_addr,           // Gives the memory address to load or store data
     output  logic                       ld_req,                 // load request signal to the memory
-   // output  logic                       st_req,                 // store request signal to the memory
+    output  logic                       st_req,                 // store request signal to the memory
+    output  logic   [`DATA_BUS-1:0]     lsu2mem_data,           // Data to be stored
+    output  logic   [WR_STROB-1:0]      wr_strobe,              // THE bytes of the DATA_BUS that contains the actual data 
+
 
     //Inputs from main_memory -> vec_lsu
-    input   logic   [`XLEN-1:0]         mem2lsu_data,           // data from the memory to lsu in case of load
+    input   logic   [`DATA_BUS-1:0]     mem2lsu_data,           // data from the memory to lsu in case of load
 
-    // Output from  vec_lsu -> main_memory
-    output  logic   [`XLEN-1:0]         lsu2mem_addr,           // address from lsu to memory in case of the load
     
     // csr_regfile -> scalar_processor
     output  logic   [`XLEN-1:0]         csr_out,                // read data from the csr registers
@@ -92,16 +94,17 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
         .is_vec             (is_vec         ),
         
         // Output from vector processor lsu --> memory
-        .ld_req             (ld_req         ),
-      //  .st_req             (st_req         ),
-        
+        .lsu2mem_addr       (lsu2mem_addr   ),           
+        .ld_req             (ld_req         ),                 
+        .st_req             (st_req         ),                 
+        .lsu2mem_data       (lsu2mem_data   ),       
+        .wr_strobe          (wr_strobe      ),       
+
         
         //Inputs from main_memory -> vec_lsu
         .mem2lsu_data       (mem2lsu_data   ),
 
-        // Output from  vec_lsu -> main_memory
-        .lsu2mem_addr       (lsu2mem_addr   ),
-
+       
         // csr_regfile -> scalar_processor
         .csr_out            (csr_out        ),
 

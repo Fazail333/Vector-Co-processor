@@ -16,36 +16,40 @@ parameter   SEW  = 32;
 logic   clk,reset;
         
 // Inputs from the scaler processor  --> vector processor
-logic   [`XLEN-1:0] instruction;        // The instruction that is to be executed by the vector processor
-logic   [`XLEN-1:0] rs1_data;           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
-logic   [`XLEN-1:0] rs2_data;           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
+logic   [`XLEN-1:0]         instruction;        // The instruction that is to be executed by the vector processor
+logic   [`XLEN-1:0]         rs1_data;           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
+logic   [`XLEN-1:0]         rs2_data;           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
 // Outputs from vector rocessor --> scaler processor
-logic               is_vec;             // This tells the instruction is a vector instruction or not mean a legal instruction or not
+logic                       is_vec;             // This tells the instruction is a vector instruction or not mean a legal instruction or not
         
 // csr_regfile -> scalar_processor
-logic   [`XLEN-1:0] csr_out;            
+logic   [`XLEN-1:0]         csr_out;            
 
 // addresses of the scaler register
-logic   [4:0]       rs1_addr;
-logic   [4:0]       rs2_addr;
+logic   [4:0]               rs1_addr;
+logic   [4:0]               rs2_addr;
 
  //Inputs from main_memory -> vec_lsu
-logic   [`XLEN-1:0]   mem2lsu_data;
+logic   [`DATA_BUS-1:0]     mem2lsu_data;
 
-    // Output from  vec_lsu -> main_memory
-logic   [`XLEN-1:0] lsu2mem_addr;
-logic               ld_req;           
-//logic               st_req;           
+// Output from  vec_lsu -> main_memory
+logic   [`XLEN-1:0]         lsu2mem_addr,           // Gives the memory address to load or store data
+logic                       ld_req,                 // load request signal to the memory
+logic                       st_req,                 // store request signal to the memory
+logic   [`DATA_BUS-1:0]     lsu2mem_data,           // Data to be stored
+logic   [WR_STROB-1:0]      wr_strobe,              // THE bytes of the DATA_BUS that contains the actual data 
+
    
 // Register file to hold scalar register values (can be initialized as needed)
-logic [`XLEN-1:0] scalar_regfile [31:0];
+logic   [`XLEN-1:0] scalar_regfile [31:0];
 
 // Instruction memory
-logic [`XLEN-1:0] inst_mem[depth-1:0];
+logic   [`XLEN-1:0] inst_mem    [depth-1:0];
 
 //  Dummy Memory for testing
-logic [`MEM_DATA_WIDTH-1:0]dummy_mem[depth-1:0];
+logic   [7:0]   dummy_mem   [depth-1:0];
+logic   [7:0]   test_mem    [depth-1:0];
 
 
 
@@ -96,16 +100,16 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
         .is_vec             (is_vec             ),
 
         // Output from vector processor lsu --> memory
-        .ld_req             (ld_req             ),
-      //  .st_req             (st_req             ),
-         
+        .lsu2mem_addr       (lsu2mem_addr       ),           
+        .ld_req             (ld_req             ),                 
+        .st_req             (st_req             ),                 
+        .lsu2mem_data       (lsu2mem_data       ),       
+        .wr_strobe          (wr_strobe          ),       
         
         //Inputs from main_memory -> vec_lsu
         .mem2lsu_data       (mem2lsu_data       ),
 
-        // Output from  vec_lsu -> main_memory
-        .lsu2mem_addr       (lsu2mem_addr       ),
-
+        
         // csr_regfile -> scalar_processor
         .csr_out            (csr_out            ),
 
@@ -188,6 +192,7 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
             // initializing the instruction memory and the dummy memory
             for (int i  = 0 ; i < depth ; i++ ) begin
                 inst_mem[i] = 'h0;
+                test_mem[i] = 'h0;
                 dummy_mem[i]= $random;
             end
             scalar_regfile[0] = 16;
@@ -217,9 +222,12 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
 
     task memory_data_fetch();
     
-        int sew;                                            // Element width (from CSR)
-        sew = VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.sew;    
-        
+        int sew;
+        logic unit_stride , const_stride , index_stride;                                            // Element width (from CSR)
+        sew = VECTOR_PROCESSOR.DATAPATH.VLSU.sew;    
+        unit_stride = VECTOR_PROCESSOR.DATAPATH.VLSU.stride_sel;
+        const_stride = !(VECTOR_PROCESSOR.DATAPATH.VLSU.stride_sel);
+        index_stride = VECTOR_PROCESSOR.DATAPATH.VLSU.index_str;
 
         // New load instruction detected: reset step flags and loop index
         if ((VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst) && (VECTOR_PROCESSOR.inst_reg_instruction != current_instruction)) begin
@@ -240,13 +248,20 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                 while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
                     @(posedge clk);
                     if (ld_req)begin
-                        mem2lsu_data = {dummy_mem[lsu2mem_addr+3],dummy_mem[lsu2mem_addr+2],
-                                        dummy_mem[lsu2mem_addr+1],dummy_mem[lsu2mem_addr]};
+                        mem2lsu_data = {dummy_mem[lsu2mem_addr + 15], dummy_mem[lsu2mem_addr + 14], 
+                                        dummy_mem[lsu2mem_addr + 13], dummy_mem[lsu2mem_addr + 12],
+                                        dummy_mem[lsu2mem_addr + 11], dummy_mem[lsu2mem_addr + 10],
+                                        dummy_mem[lsu2mem_addr + 9],  dummy_mem[lsu2mem_addr + 8],
+                                        dummy_mem[lsu2mem_addr + 7],  dummy_mem[lsu2mem_addr + 6],
+                                        dummy_mem[lsu2mem_addr + 5],  dummy_mem[lsu2mem_addr + 4],
+                                        dummy_mem[lsu2mem_addr + 3],  dummy_mem[lsu2mem_addr + 2], 
+                                        dummy_mem[lsu2mem_addr + 1],  dummy_mem[lsu2mem_addr]};
 
                        // $display("LSU Address: %0h, Dummy Mem Contents: %h %h %h %h", lsu2mem_addr,
                         //dummy_mem[lsu2mem_addr+3], dummy_mem[lsu2mem_addr+2],
                          //dummy_mem[lsu2mem_addr+1], dummy_mem[lsu2mem_addr]);
                         
+                    
 
 
                         vector_load_with_masking();
@@ -268,8 +283,14 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                     // Instead of assigning variable-width slices dynamically, load each bit of the element.
                     if (ld_req) begin
                         // Fetch the memory data for the current address immediately
-                        mem2lsu_data <= {dummy_mem[lsu2mem_addr+3], dummy_mem[lsu2mem_addr+2],
-                                        dummy_mem[lsu2mem_addr+1], dummy_mem[lsu2mem_addr]};
+                        mem2lsu_data = {dummy_mem[lsu2mem_addr + 15], dummy_mem[lsu2mem_addr + 14], 
+                                        dummy_mem[lsu2mem_addr + 13], dummy_mem[lsu2mem_addr + 12],
+                                        dummy_mem[lsu2mem_addr + 11], dummy_mem[lsu2mem_addr + 10],
+                                        dummy_mem[lsu2mem_addr + 9],  dummy_mem[lsu2mem_addr + 8],
+                                        dummy_mem[lsu2mem_addr + 7],  dummy_mem[lsu2mem_addr + 6],
+                                        dummy_mem[lsu2mem_addr + 5],  dummy_mem[lsu2mem_addr + 4],
+                                        dummy_mem[lsu2mem_addr + 3],  dummy_mem[lsu2mem_addr + 2], 
+                                        dummy_mem[lsu2mem_addr + 1],  dummy_mem[lsu2mem_addr]};
 
                         // Display memory fetch information for verification
                         $display("LSU Address: %0h, Dummy Mem Contents: %h %h %h %h", lsu2mem_addr,
@@ -277,10 +298,38 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                                 dummy_mem[lsu2mem_addr+1], dummy_mem[lsu2mem_addr]);
 
                         // Load each bit from the fetched data into `loaded_data`
-                        for (int idx = 0; idx < sew; idx++) begin
-                            loaded_data[(i * sew) + idx] = mem2lsu_data[idx];
+                        
+                        if (!index_stride && (unit_stride || (const_stride && ($unsigned(rs2_data[7:0]) == 1))))begin
+
+                            for (int i = 0; i < `DATA_BUS/8 ; i++)begin
+                                test_mem[lsu2mem_addr + i] = mem2lsu_data[8*i +: 8]; 
+                            end        
+                            
+                        else begin     
+                            case (sew)
+                                7'd8:  test_mem[lsu2mem_addr] <= mem2lsu_data[7:0];
+                                7'd16:begin
+                                        test_mem[lsu2mem_addr]   <= mem2lsu_data[7:0];
+                                        test_mem[lsu2mem_addr+1] <= mem2lsu_data[15:8];
+                                end 
+                                7'd32: begin
+                                        test_mem[lsu2mem_addr]   <= mem2lsu_data[7:0];
+                                        test_mem[lsu2mem_addr+1] <= mem2lsu_data[15:8];
+                                        test_mem[lsu2mem_addr+2] <= mem2lsu_data[23:16];
+                                        test_mem[lsu2mem_addr+3] <= mem2lsu_data[31:24];
+                                end 
+                                7'd64: begin
+                                        test_mem[lsu2mem_addr]   <= mem2lsu_data[7:0];
+                                        test_mem[lsu2mem_addr+1] <= mem2lsu_data[15:8];
+                                        test_mem[lsu2mem_addr+2] <= mem2lsu_data[23:16];
+                                        test_mem[lsu2mem_addr+3] <= mem2lsu_data[31:24];
+                                end 
+                                default: loaded_data[count_el-2] <= mem2lsu_data;
+                        endcase
                         end
 
+
+                        
                         i++; // Increment index for the next element
                    end
                     @(posedge clk);
@@ -544,39 +593,7 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                 // Vector load instructions
                 V_LOAD: begin
 
-                    case (VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.lmul)
-                        
-                        4'b0001: begin // LMUL = 1
-                            vec_reg_data = VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr];
-                        end
-                        4'b0010: begin // LMUL = 2
-                    
-                            vec_reg_data = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 1],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr]};
-                        end
-
-                        4'b0100: begin // LMUL = 4
-                            vec_reg_data = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 3], 
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 2],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 1],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr]};
-                        end
-            
-                        4'b1000: begin // LMUL = 8
-                            vec_reg_data = {VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 7], 
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 6],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 5],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 4],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 3], 
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 2],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr + 1],
-                                            VECTOR_PROCESSOR.DATAPATH.VEC_REGFILE.vec_regfile[vec_reg_addr]};
-                        end
-                        default: begin 
-                            vec_reg_data = 'h0;
-                        end
-                    endcase
-                    
+                                        
                     if (loaded_data == vec_reg_data) begin
                         $display("======================= TEST PASSED ==========================");
                         $display("Loaded DATA : %h", vec_reg_data);

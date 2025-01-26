@@ -14,7 +14,8 @@
 `define MAX_VLEN 4096
 // The width of the memory data bus
 `define DATA_BUS 128
-
+// Write stobe for memory
+ parameter WR_STROB = $clog2(`DATA_BUS/8) ;
 
 typedef enum logic [1:0]{  
     IDLE,
