@@ -15,6 +15,8 @@ module vec_regfile (
     input   logic   [ADDR_WIDTH-1:0]        waddr,             // The address of the vector register where the vector is written
     input   logic                           wr_en,             // The enable signal to write in the vector register 
     input   logic   [3:0]                   lmul,              // LMUL value (controls register granularity)
+    input   logic   [3:0]                   emul,              // EMUL value (controls register granularity)
+    input   logic                           offset_vec_en      // Tells the rdata2 vector is offset vector and will be chosen on base of emul
     input   logic                           mask_operation,    // This signal tell this instruction is going to perform mask register update 
     input   logic                           mask_wr_en,        // This the enable signal for updating the mask value                                                
     // Outputs 
@@ -27,8 +29,9 @@ module vec_regfile (
 );
 
     logic temp_wrong_addr ;                                    // Temporary variable to hold error state
-    logic addr_error;                                          // Temporary signal for address error checking
-
+    logic addr_error , addr_error_emul;                        // Temporary signal for address error checking
+    logic   [DATA_WIDTH-1:0]  rdata_2_lmul,rdata_2_emul;       // Temporary rdata_2 across emul and lmul
+    
     // Fixed-size Vector Register File (VLEN and MAX_VEC_REGISTERS)
     logic [`VLEN-1:0] vec_regfile [`MAX_VEC_REGISTERS-1:0];
 
@@ -52,11 +55,11 @@ module vec_regfile (
     
     // Address validation and read operation
     always_comb begin
-        rdata_1     = 'h0;
-        rdata_2     = 'h0;
-        dst_data    = 'h0;
-        addr_error  =   0;
-
+        rdata_1          = 'h0;
+        rdata_2          = 'h0;
+        dst_data         = 'h0;
+        addr_error       =   0;
+        addr_error_emul  =   0;
         // If the mask logical operations is to perform then the rdata should 
         // get the vector register at the addr regarless of the lmul value
 
@@ -67,14 +70,52 @@ module vec_regfile (
         end
         // Read operation for rdata_1, rdata_2, and dst_data based on lmul
         else begin
+            case (emul)
+                4'b0001: begin // EMUL = 1
+                    if (raddr_2 >= `MAX_VEC_REGISTERS) begin
+                        addr_error_emul = 1;
+                    end else begin
+                       rdata_2_emul = vec_regfile[raddr_2];                        
+                    end
+                end
+                4'b0010: begin // EMUL = 2
+                    if ( raddr_2 >= `MAX_VEC_REGISTERS - 1 ||  raddr_2 % 2 != 0 ) begin
+                        addr_error_emul = 1;
+                    end else begin
+                        rdata_2_emul = {vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                    end
+                end
+                4'b0100: begin // LMUL = 4
+                    if (raddr_2 >= `MAX_VEC_REGISTERS - 3 || raddr_2 % 4 != 0 ) begin
+                        addr_error_emul = 1;
+                    end else begin
+                        rdata_2_emul = {vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                    end
+                end
+                4'b1000: begin // LMUL = 8
+                    if (raddr_2 >= `MAX_VEC_REGISTERS - 7 || raddr_2 % 8 != 0 ) begin
+                        addr_error_emul = 1;
+                    end else begin
+                        rdata_2_emul = {vec_regfile[raddr_2 + 7], vec_regfile[raddr_2 + 6], vec_regfile[raddr_2 + 5], vec_regfile[raddr_2 + 4],
+                                vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                    end
+                end
+                default: begin 
+                    rdata_2_emul = 'h0;
+                    addr_error_emul = 1;  // Flag an error for invalid EMUL
+                    $display("ERROR: Invalid EMUL value: %b", emul);
+                    $fatal("Invalid EMUL: %b. Reserved configuration!", emul);
+                end
+
+            endcase
             case (lmul)
                 4'b0001: begin // LMUL = 1
                     if (raddr_1 >= `MAX_VEC_REGISTERS || raddr_2 >= `MAX_VEC_REGISTERS || waddr >= `MAX_VEC_REGISTERS) begin
                         addr_error = 1;
                     end else begin
-                        rdata_1 = vec_regfile[raddr_1];
-                        rdata_2 = vec_regfile[raddr_2];
-                        dst_data = vec_regfile[waddr]; // Read data at waddr
+                        rdata_1      = vec_regfile[raddr_1];
+                        rdata_2_lmul = vec_regfile[raddr_2];
+                        dst_data     = vec_regfile[waddr]; // Read data at waddr
                     end
                 end
                 4'b0010: begin // LMUL = 2
@@ -82,9 +123,9 @@ module vec_regfile (
                         raddr_1 % 2 != 0 || raddr_2 % 2 != 0 || waddr % 2 != 0) begin
                         addr_error = 1;
                     end else begin
-                        rdata_1 = {vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
-                        rdata_2 = {vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
-                        dst_data = {vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
+                        rdata_1      = {vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
+                        rdata_2_lmul = {vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                        dst_data     = {vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
                     end
                 end
                 4'b0100: begin // LMUL = 4
@@ -92,9 +133,9 @@ module vec_regfile (
                         raddr_1 % 4 != 0 || raddr_2 % 4 != 0 || waddr % 4 != 0) begin
                         addr_error = 1;
                     end else begin
-                        rdata_1 = {vec_regfile[raddr_1 + 3], vec_regfile[raddr_1 + 2], vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
-                        rdata_2 = {vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
-                        dst_data = {vec_regfile[waddr + 3], vec_regfile[waddr + 2], vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
+                        rdata_1      = {vec_regfile[raddr_1 + 3], vec_regfile[raddr_1 + 2], vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
+                        rdata_2_lmul = {vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                        dst_data     = {vec_regfile[waddr + 3], vec_regfile[waddr + 2], vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
                     end
                 end
                 4'b1000: begin // LMUL = 8
@@ -102,24 +143,28 @@ module vec_regfile (
                         raddr_1 % 8 != 0 || raddr_2 % 8 != 0 || waddr % 8 != 0) begin
                         addr_error = 1;
                     end else begin
-                        rdata_1 = {vec_regfile[raddr_1 + 7], vec_regfile[raddr_1 + 6], vec_regfile[raddr_1 + 5], vec_regfile[raddr_1 + 4],
-                                vec_regfile[raddr_1 + 3], vec_regfile[raddr_1 + 2], vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
-                        rdata_2 = {vec_regfile[raddr_2 + 7], vec_regfile[raddr_2 + 6], vec_regfile[raddr_2 + 5], vec_regfile[raddr_2 + 4],
-                                vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
-                        dst_data = {vec_regfile[waddr + 7], vec_regfile[waddr + 6], vec_regfile[waddr + 5], vec_regfile[waddr + 4],
-                                    vec_regfile[waddr + 3], vec_regfile[waddr + 2], vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
+                        rdata_1      = {vec_regfile[raddr_1 + 7], vec_regfile[raddr_1 + 6], vec_regfile[raddr_1 + 5], vec_regfile[raddr_1 + 4],
+                                        vec_regfile[raddr_1 + 3], vec_regfile[raddr_1 + 2], vec_regfile[raddr_1 + 1], vec_regfile[raddr_1]};
+                        rdata_2_lmul = {vec_regfile[raddr_2 + 7], vec_regfile[raddr_2 + 6], vec_regfile[raddr_2 + 5], vec_regfile[raddr_2 + 4],
+                                        vec_regfile[raddr_2 + 3], vec_regfile[raddr_2 + 2], vec_regfile[raddr_2 + 1], vec_regfile[raddr_2]};
+                        dst_data     = {vec_regfile[waddr + 7], vec_regfile[waddr + 6], vec_regfile[waddr + 5], vec_regfile[waddr + 4],
+                                        vec_regfile[waddr + 3], vec_regfile[waddr + 2], vec_regfile[waddr + 1], vec_regfile[waddr]}; // Read data at waddr
                     end
                 end
                 default: begin 
-                    rdata_1 = 'h0;
-                    rdata_2 = 'h0;
-                    dst_data = 'h0;
-                    addr_error = 0;
+                    rdata_1      = 'h0;
+                    rdata_2_lmul = 'h0;
+                    dst_data     = 'h0;
+                    addr_error   = 1;  // Flag an error for invalid LMUL
+                    $display("ERROR: Invalid LMUL value: %b", lmul);
+                    $fatal("Invalid LMUL: %b. Reserved configuration!", lmul);
                 end
 
             endcase
         end  
     end
+     // RDATA2 MUX for selection b/w data based on lmul and emul
+    assign rdata_2 = (offset_vec_en) ? rdata_2_emul : rdata_2_lmul;
 
     // Write operation and error handling for both read and write addresses
     always_ff @(negedge clk or negedge reset) begin
@@ -216,11 +261,9 @@ module vec_regfile (
                     end
                 endcase
             end else begin
-                wrong_addr <= addr_error;  // Capture address error during read
+                wrong_addr <= addr_error | addr_error_emul;  // Capture address error during read
                 data_written <= 0;
             end
-            
-            
         end
     end
 
