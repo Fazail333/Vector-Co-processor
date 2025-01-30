@@ -46,12 +46,12 @@ module vector_processor_datapth (
 
     // vec_control_signals -> vec_csr_regs
     input   logic                           csrwr_en,
-
+    
     // vec_control_signals -> vec_register_file
     input   logic                           vec_reg_wr_en,     // The enable signal to write in the vector register
     input   logic                           mask_operation,    // This signal tell this instruction is going to perform mask register update
     input   logic                           mask_wr_en,        // This the enable signal for updating the mask value
-
+    input   logic                           offset_vec_en,     // TODO  Tells the rdata2 vector is offset vector and will be chosen on base of emul
     input   logic   [1:0]                   data_mux1_sel,     // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
     input   logic                           data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
 
@@ -60,7 +60,7 @@ module vector_processor_datapth (
     input   logic                           ld_inst             // tells that it is load insruction or store one
     input   logic                           st_inst,            // Store instruction
     input   logic                           index_str,          // tells about index stride
-     input   logic                          index_unordered     // tells about index unordered stride
+    input   logic                          index_unordered     //TODO tells about index unordered stride
 );
 
 
@@ -69,6 +69,7 @@ logic   [`XLEN-1:0] vec_read_addr_1  , vec_read_addr_2 , vec_write_addr;
 
 // Vector Immediate from the decode 
 logic   [`MAX_VLEN-1:0] vec_imm;
+logic   [3:0]           emul;               // TODO EMUL value (controls register granularity)
 
 // signal that tells that if the masking is  enabled or not
 logic  vec_mask;
@@ -182,7 +183,8 @@ assign inst_done = data_written || csr_done;
 
         // vec_decode -> vec_csr_regs
         .scalar2                (scalar2        ), 
-        .scalar1                (scalar1        ), 
+        .scalar1                (scalar1        ),
+     
 
         // vec_control_signals -> vec_csr_regs
         .csrwr_en               (csrwr_en       ),
@@ -217,6 +219,8 @@ assign inst_done = data_written || csr_done;
         .waddr          (vec_write_addr ),
         .wr_en          (vec_wr_en      ), 
         .lmul           (vlmul          ),
+        .emul           (emul           ),
+        .offset_vec_en  (offset_vec_en  ),
         .mask_operation (mask_operation ), 
         .mask_wr_en     (mask_wr_en     ),                                                
         
