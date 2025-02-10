@@ -19,6 +19,9 @@ module vector_processor_controller (
     // vec_control_signals -> vec_csr
     output  logic                csrwr_en,
 
+    output  logic                sew_eew_sel,
+    output  logic                vlmax_evlmax_sel,
+    output  logic                emul_vlmul_sel,
   
     // Vec_control_signals -> vec_registerfile
     output  logic                vec_reg_wr_en,      // The enable signal to write in the vector register
@@ -65,6 +68,9 @@ always_comb begin
     index_str       = 1'b0;
     index_unordered = 1'b0;
     offset_vec_en   = 1'b0;
+    sew_eew_sel     = 1'b0;
+    vlmax_evlmax_sel = 1'b0;
+    emul_vlmul_sel  = 1'b0;
     
     case (vopcode)
     V_ARITH: begin
@@ -151,14 +157,20 @@ always_comb begin
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b1;     // scaler2
                 offset_vec_en   = 1'b0;     // vector as offset
-                index_unordered = 1'b0;      
+                index_unordered = 1'b0;
+                sew_eew_sel     = 1'b1;     // eew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b1;     // emul selected
             end
             2'b01: begin // indexed stride unordered
                 index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b0;     // vec_data_2
                 offset_vec_en   = 1'b1;     // vector as offset
-                index_unordered = 1'b1; 
+                index_unordered = 1'b1;
+                sew_eew_sel     = 1'b0;     // sew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b0;     // vlmul selected
             end
             2'b10: begin // strided
                 stride_sel      = 1'b0;     // constant stride
@@ -166,6 +178,9 @@ always_comb begin
                 data_mux2_sel   = 1'b1;     // scaler2
                 offset_vec_en   = 1'b0;     // vector as offset
                 index_unordered = 1'b0;
+                sew_eew_sel     = 1'b1;     // eew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b1;     // emul selected
             end
             2'b11: begin // indexed stride ordered
                 index_str       = 1'b1;
@@ -173,6 +188,9 @@ always_comb begin
                 data_mux2_sel   = 1'b0;     // vec_data_2
                 offset_vec_en   = 1'b1;     // vector as offset
                 index_unordered = 1'b0;
+                sew_eew_sel     = 1'b0;     // sew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b0;     // vlmul selected
             end
             default: begin
                 index_str       = 1'b0;
@@ -201,14 +219,20 @@ always_comb begin
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b1;     // scaler2
                 offset_vec_en   = 1'b0;     // vector as offset
-                index_unordered = 1'b0;      
+                index_unordered = 1'b0;
+                sew_eew_sel     = 1'b1;     // eew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b1;     // emul selected
             end
             2'b01: begin // indexed stride unordered
                 index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b0;     // vec_data_2
                 offset_vec_en   = 1'b1;     // vector as offset
-                index_unordered = 1'b1; 
+                index_unordered = 1'b1;
+                sew_eew_sel     = 1'b0;     // sew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b0;     // vlmul selected
             end
             2'b10: begin // strided
                 stride_sel      = 1'b0;     // constant stride
@@ -216,6 +240,9 @@ always_comb begin
                 data_mux2_sel   = 1'b1;     // scaler2
                 offset_vec_en   = 1'b0;     // vector as offset
                 index_unordered = 1'b0;
+                sew_eew_sel     = 1'b1;     // eew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b1;     // emul selected
             end
             2'b11: begin // indexed stride ordered
                 index_str       = 1'b1;
@@ -223,6 +250,9 @@ always_comb begin
                 data_mux2_sel   = 1'b0;     // vec_data_2
                 offset_vec_en   = 1'b1;     // vector as offset
                 index_unordered = 1'b0;
+                sew_eew_sel     = 1'b0;     // sew selected
+                vlmax_evlmax_sel= 1'b1;     // evlmax selected
+                emul_vlmul_sel  = 1'b0;     // vlmul selected
             end
             default: begin
                 index_str       = 1'b0;
