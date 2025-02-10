@@ -12,6 +12,7 @@ module vec_decode(
     // vec_decode -> vec_regfile
     output logic [`XLEN-1:0]    vec_read_addr_1,        // vs1_addr
     output logic [`XLEN-1:0]    vec_read_addr_2,        // vs2_addr
+    output logic [`XLEN-1:0]    vec_read_addr_3,        // vs3_addr
     output logic [`XLEN-1:0]    vec_write_addr,         // vd_addr
     output logic [`MAX_VLEN-1:0]vec_imm,
     output logic                vec_mask,
@@ -36,7 +37,7 @@ module vec_decode(
 v_opcode_e      vopcode;
 v_func3_e       vfunc3;
 logic [1:0]     inst_msb;
-logic [4:0]     vs1_addr;
+logic [4:0]     vs1_addr, vs3_addr;
 logic [4:0]     vs2_addr;
 logic [4:0]     vd_addr;
 logic [4:0]     rs1_addr;
@@ -54,6 +55,7 @@ logic [10:0]         zimm;          // zero-extended immediate
 logic [4:0]          uimm;          // unsigned immediate
 
 assign vopcode  = v_opcode_e'(vec_inst[6:0]);
+assign vs3_addr = vec_inst[11:7];
 assign vd_addr  = vec_inst[11:7];
 assign vfunc3   = v_func3_e'(vec_inst[14:12]);
 assign vs1_addr = vec_inst[19:15];
@@ -78,6 +80,7 @@ always_comb begin : vec_decode
     vec_write_addr  = '0;
     vec_read_addr_1 = '0;
     vec_read_addr_2 = '0;
+    vec_read_addr_3 = '0;
     vec_imm         = '0;
     vec_mask        = '0;
     rs1_o           = '0;
@@ -180,11 +183,31 @@ always_comb begin : vec_decode
             endcase
         end
 
+        // Vector Store instructions
+        V_STORE: begin
+            is_vec          = 1'b1;
+            vec_read_addr_3 = vs3_addr;
+            vec_imm         = '0;
+            vec_mask        = vm;
+            mew             = vec_inst[28];
+            nf              = vec_inst[31:29];
+            width           = vec_inst[14:12];
+            case(mop)
+                2'b10: rs2_o = rs2_data;
+                // gather unordered
+                2'b01:vec_read_addr_2 = vs2_addr;
+                // gather ordered
+                2'b11:vec_read_addr_2 = vs2_addr;
+                default:vec_read_addr_2 = '0;
+            endcase
+        end
+
         default: begin
             is_vec          = '0;
             vec_write_addr  = '0;
             vec_read_addr_1 = '0;
             vec_read_addr_2 = '0;
+            vec_read_addr_3 = '0;
             vec_imm         = '0;
             vec_mask        = '0;
             rs1_o           = '0;
