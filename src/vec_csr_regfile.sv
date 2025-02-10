@@ -13,14 +13,16 @@ module vec_csr_regfile (
     // vec_decode -> vec_csr_regs
     input   logic   [`XLEN-1:0]     scalar2,    // vtype-csr
     input   logic   [`XLEN-1:0]     scalar1,    // vlen-csr / vstart-csr
+    input   logic                   mew,
+    input   logic   [2:0]           width,      // width of memory element
 
     // vec_control_signals -> vec_csr_regs
     input   logic                   csrwr_en,
 
     // vec_csr_regs ->
-    output  logic   [3:0]           vlmul,
-    output  logic   [6:0]           sew,
-    output  logic   [9:0]           vlmax,
+    output  logic   [3:0]           vlmul, emul,
+    output  logic   [6:0]           sew, eew,
+    output  logic   [9:0]           vlmax, e_vlmax,
     output  logic                   tail_agnostic,    // vector tail agnostic
     output  logic                   mask_agnostic,    // vector mask agnostic
 
@@ -181,6 +183,215 @@ always_comb begin
     endcase
 end
 
+// eew decoding
+always_comb begin
+    case (mew,width)
+        4'b0000:eew = 8;
+        4'b0101:eew = 16;
+        4'b0110:eew = 32;
+        4'b0111:eew = 64;
+        default:eew = 32;
+    endcase
+end
+
+// emul = eew/sew * lmul
+always_comb begin : emul_decoding
+    case (mew,width)
+        4'b0000: begin // eew=8
+            case (vlmul_e'(csr_vtype_q.vlmul))
+                LMUL_1: begin // vlmul=1
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 1;   // sew=8
+                        EW16:   emul = 1/2; // sew=16
+                        EW32:   emul = 1/4; // sew=32
+                        EW64:   emul = 1/8; // sew=64
+                        EWRSVD: emul = 1/4; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_2: begin // vlmul=2
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 2;   // sew=8
+                        EW16:   emul = 1; // sew=16
+                        EW32:   emul = 1/2; // sew=32
+                        EW64:   emul = 1/4; // sew=64
+                        EWRSVD: emul = 1/2; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_4: begin // vlmul=4
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 4;   // sew=8
+                        EW16:   emul = 2; // sew=16
+                        EW32:   emul = 1; // sew=32
+                        EW64:   emul = 1/2; // sew=64
+                        EWRSVD: emul = 1; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_8: begin // vlmul=8
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 8;   // sew=8
+                        EW16:   emul = 4; // sew=16
+                        EW32:   emul = 2; // sew=32
+                        EW64:   emul = 1; // sew=64
+                        EWRSVD: emul = 2; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                default: begin
+                    emul = 1;
+                end
+            endcase
+        end
+        4'b0101: begin // eew=16
+            case (vlmul_e'(csr_vtype_q.vlmul))
+                LMUL_1: begin // vlmul=1
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 2;   // sew=8
+                        EW16:   emul = 1; // sew=16
+                        EW32:   emul = 1/2; // sew=32
+                        EW64:   emul = 1/4; // sew=64
+                        EWRSVD: emul = 1/2; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_2: begin // vlmul=2
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 4;   // sew=8
+                        EW16:   emul = 2; // sew=16
+                        EW32:   emul = 1; // sew=32
+                        EW64:   emul = 1/2; // sew=64
+                        EWRSVD: emul = 1; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_4: begin // vlmul=4
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 8;   // sew=8
+                        EW16:   emul = 4; // sew=16
+                        EW32:   emul = 2; // sew=32
+                        EW64:   emul = 1; // sew=64
+                        EWRSVD: emul = 2; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_8: begin // vlmul=8
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 16;   // sew=8
+                        EW16:   emul = 8; // sew=16
+                        EW32:   emul = 4; // sew=32
+                        EW64:   emul = 2; // sew=64
+                        EWRSVD: emul = 4; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                default: begin
+                    emul = 1;
+                end
+            endcase
+        end
+        4'b0110: begin // eew=32
+            case (vlmul_e'(csr_vtype_q.vlmul))
+                LMUL_1: begin // vlmul=1
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 4;   // sew=8
+                        EW16:   emul = 2; // sew=16
+                        EW32:   emul = 1; // sew=32
+                        EW64:   emul = 1/2; // sew=64
+                        EWRSVD: emul = 1; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_2: begin // vlmul=2
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 8;   // sew=8
+                        EW16:   emul = 4; // sew=16
+                        EW32:   emul = 2; // sew=32
+                        EW64:   emul = 1; // sew=64
+                        EWRSVD: emul = 2; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_4: begin // vlmul=4
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 16;   // sew=8
+                        EW16:   emul = 8; // sew=16
+                        EW32:   emul = 4; // sew=32
+                        EW64:   emul = 2; // sew=64
+                        EWRSVD: emul = 4; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_8: begin // vlmul=8
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 32;   // sew=8
+                        EW16:   emul = 16; // sew=16
+                        EW32:   emul = 8; // sew=32
+                        EW64:   emul = 4; // sew=64
+                        EWRSVD: emul = 8; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                default: begin
+                    emul = 1;
+                end
+            endcase
+        end
+        4'b0111: begin // eew=64
+            case (vlmul_e'(csr_vtype_q.vlmul))
+                LMUL_1: begin // vlmul=1
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 8;   // sew=8
+                        EW16:   emul = 4; // sew=16
+                        EW32:   emul = 2; // sew=32
+                        EW64:   emul = 1; // sew=64
+                        EWRSVD: emul = 2; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_2: begin // vlmul=2
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 16;   // sew=8
+                        EW16:   emul = 8; // sew=16
+                        EW32:   emul = 4; // sew=32
+                        EW64:   emul = 2; // sew=64
+                        EWRSVD: emul = 4; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_4: begin // vlmul=4
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 32;   // sew=8
+                        EW16:   emul = 16; // sew=16
+                        EW32:   emul = 8; // sew=32
+                        EW64:   emul = 4; // sew=64
+                        EWRSVD: emul = 8; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                LMUL_8: begin // vlmul=8
+                    case (vew_e'(csr_vtype_q.vsew))
+                        EW8:    emul = 64;   // sew=8
+                        EW16:   emul = 32; // sew=16
+                        EW32:   emul = 16; // sew=32
+                        EW64:   emul = 8; // sew=64
+                        EWRSVD: emul = 16; // sew=32
+                        default: emul = 1; 
+                    endcase
+                end
+                default: begin
+                    emul = 1;
+                end
+            endcase
+        end
+    endcase
+end
+
+// e_vlmax decoding TODO
+always_comb begin : evlmax_decoding
+    e_vlmax = (VLEN/eew)*emul ;
+end
 assign vec_length = csr_vl_q;
 assign start_element  = csr_vstart_q;
 assign mask_agnostic  = csr_vtype_q.vma;
