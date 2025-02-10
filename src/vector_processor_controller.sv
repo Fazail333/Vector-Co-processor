@@ -26,12 +26,14 @@ module vector_processor_controller (
     output  logic                mask_wr_en,         // This the enable signal for updating the mask value
     output  logic   [1:0]        data_mux1_sel,      // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
     output  logic                data_mux2_sel,      // This the selsction of the mux to select between scaler2 , and vec_data2
+    output  logic                offset_vec_en,      // Tells the rdata2 vector is offset vector and will be chosen on base of emul
 
     // vec_control_signals -> vec_lsu
     output  logic                stride_sel,         // tells about unit stride
     output  logic                ld_inst,            // tells about load insruction
     output  logic                st_inst,            // tells about store instruction 
-    output  logic                index_str           // tells about the indexed stride
+    output  logic                index_str,          // tells about the indexed stride
+    output  logic                index_unordered     // tells about index unordered stride
 );
 
 v_opcode_e      vopcode;
@@ -61,6 +63,8 @@ always_comb begin
     ld_inst         = 1'b0;
     st_inst         = 1'b0;
     index_str       = 1'b0;
+    index_unordered = 1'b0;
+    offset_vec_en   = 1'b0;
     
     case (vopcode)
     V_ARITH: begin
@@ -137,42 +141,46 @@ always_comb begin
         vec_reg_wr_en   = 1;
         mask_operation  = 0;
         mask_wr_en      = 0;
-        //data_mux1_sel   = 2'b01;
-        //data_mux2_sel   = 1'b1;
-        //stride_sel      = 1'b1;
         ld_inst         = 1'b1;
         st_inst         = 1'b0;
-        index_str       = 1'b0;
                 
-        vtype_sel       = 1;        // 1 or 0 don't care
-        lumop_sel       = 1;        // 1 or 0 don't care   
         
         case (mop)
             2'b00: begin // unit-stride
                 stride_sel      = 1'b1;     // unit stride
                 data_mux1_sel   = 2'b01;    // scaler1
-                data_mux2_sel   = 1'b1;     // scaler2      
+                data_mux2_sel   = 1'b1;     // scaler2
+                offset_vec_en   = 1'b0;     // vector as offset
+                index_unordered = 1'b0;      
             end
             2'b01: begin // indexed stride unordered
                 index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
-                data_mux2_sel   = 1'b0;     // vec_data_2 
+                data_mux2_sel   = 1'b0;     // vec_data_2
+                offset_vec_en   = 1'b1;     // vector as offset
+                index_unordered = 1'b1; 
             end
             2'b10: begin // strided
                 stride_sel      = 1'b0;     // constant stride
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b1;     // scaler2
+                offset_vec_en   = 1'b0;     // vector as offset
+                index_unordered = 1'b0;
             end
             2'b11: begin // indexed stride ordered
                 index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b0;     // vec_data_2
+                offset_vec_en   = 1'b1;     // vector as offset
+                index_unordered = 1'b0;
             end
             default: begin
                 index_str       = 1'b0;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b01;    // scalar_2
                 stride_sel      = 1'b1;     // unit stride
+                offset_vec_en   = 1'b0;     // vector as offset
+                index_unordered = 1'b0;
             end
         endcase
     end
@@ -183,42 +191,46 @@ always_comb begin
         vec_reg_wr_en   = 1;
         mask_operation  = 0;
         mask_wr_en      = 0;
-        //data_mux1_sel   = 2'b01;
-        //data_mux2_sel   = 1'b1;
-        //stride_sel      = 1'b1;
         ld_inst         = 1'b0;
         st_inst         = 1'b1;
-        //index_str       = 1'b0;
-                
-        vtype_sel       = 1;        // 1 or 0 don't care
-        lumop_sel       = 1;        // 1 or 0 don't care   
+                   
         
         case (mop)
             2'b00: begin // unit-stride
                 stride_sel      = 1'b1;     // unit stride
                 data_mux1_sel   = 2'b01;    // scaler1
-                data_mux2_sel   = 1'b1;     // scaler2      
+                data_mux2_sel   = 1'b1;     // scaler2
+                offset_vec_en   = 1'b0;     // vector as offset
+                index_unordered = 1'b0;      
             end
             2'b01: begin // indexed stride unordered
                 index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
-                data_mux2_sel   = 1'b0;     // vec_data_2 
+                data_mux2_sel   = 1'b0;     // vec_data_2
+                offset_vec_en   = 1'b1;     // vector as offset
+                index_unordered = 1'b1; 
             end
             2'b10: begin // strided
                 stride_sel      = 1'b0;     // constant stride
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b1;     // scaler2
+                offset_vec_en   = 1'b0;     // vector as offset
+                index_unordered = 1'b0;
             end
             2'b11: begin // indexed stride ordered
                 index_str       = 1'b1;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b0;     // vec_data_2
+                offset_vec_en   = 1'b1;     // vector as offset
+                index_unordered = 1'b0;
             end
             default: begin
                 index_str       = 1'b0;
                 data_mux1_sel   = 2'b01;    // scaler1
                 data_mux2_sel   = 1'b01;    // scalar_2
                 stride_sel      = 1'b1;     // unit stride
+                offset_vec_en   = 1'b0;     // vector as offset
+                index_unordered = 1'b0;
             end
         endcase
     end
@@ -236,6 +248,11 @@ always_comb begin
         data_mux2_sel   = 1'b0;
         stride_sel      = 1'b0;
         ld_inst         = 1'b0;
+        st_inst         = 1'b0;
+        index_str       = 1'b0;
+        index_unordered = 1'b0;
+        offset_vec_en   = 1'b0;
+
     
     end
     endcase    
