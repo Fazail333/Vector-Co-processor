@@ -152,6 +152,7 @@ module vec_regfile (
                     end
                 end
                 default: begin 
+                    
                     rdata_1      = 'h0;
                     rdata_2_lmul = 'h0;
                     dst_data     = 'h0;
