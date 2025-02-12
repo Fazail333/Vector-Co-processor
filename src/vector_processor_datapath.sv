@@ -67,7 +67,7 @@ module vector_processor_datapth (
     input   logic                           ld_inst             // tells that it is load insruction or store one
     input   logic                           st_inst,            // Store instruction
     input   logic                           index_str,          // tells about index stride
-    input   logic                          index_unordered     //  tells about index unordered stride
+    input   logic                           index_unordered     // tells about index unordered stride
 );
 
 
