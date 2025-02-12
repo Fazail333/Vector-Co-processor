@@ -55,6 +55,9 @@ logic               rs1_sel;            // selection for rs1_data
 
 // vec_control_signals -> vec_csr
 logic                csrwr_en;
+logic                sew_eew_sel;       // selection for sew_eew mux
+logic                vlmax_evlmax_sel;  // selection for vlmax_evlmax
+logic                emul_vlmul_sel;    // selection for vlmul_emul m
 
 // Vec_control_signals -> vec_registerfile
 logic                vec_reg_wr_en;      // The enable signal to write in the vector register
@@ -62,13 +65,13 @@ logic                mask_operation;     // This signal tell this instruction is
 logic                mask_wr_en;         // This the enable signal for updating the mask value
 logic   [1:0]        data_mux1_sel;      // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
 logic                data_mux2_sel;      // This the selsction of the mux to select between scaler2 , and vec_data2
-
+logic                offset_vec_en;      // Tells the rdata2 vector is offset vector and will be chosen on base of emul
 // vec_control_signals -> vec_lsu
 logic                stride_sel;         // tells that  it is a unit stride or the constant stride
 logic                ld_inst;            // tells about load instruction
 logic                st_inst;            // tells about store instruction
 logic                index_str;          // tells about indexed strided load/store
-
+logic                index_unordered;    // tells about index unordered stride
 // datapath --> val_ready_controller
 logic                inst_done;
 
@@ -112,7 +115,10 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
         .inst_done          (inst_done      ),            
 
         // Inputs from the controller --> datapath
-    
+        .sew_eew_sel        (sew_eew_sel     ),
+        .vlmax_evlmax_sel   (vlmax_evlmax_sel),
+        .emul_vlmul_sel     (emul_vlmul_sel  ),
+
         // vec_control_signals -> vec_decode
         .vl_sel             (vl_sel         ),
         .vtype_sel          (vtype_sel      ),
@@ -129,13 +135,14 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
         .mask_wr_en         (mask_wr_en     ),
         .data_mux1_sel      (data_mux1_sel  ),
         .data_mux2_sel      (data_mux2_sel  ),
+        .offset_vec_en      (offset_vec_en  ),
 
         // vec_control_signals -> vec_lsu
         .stride_sel         (stride_sel     ),
         .ld_inst            (ld_inst        ),
         .st_inst            (st_inst        ),
-        .index_str          (index_str      ) 
-
+        .index_str          (index_str      ), 
+        .index_unordered    (index_unordered)
         
     );
 
@@ -155,7 +162,10 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
         .rs1_sel            (rs1_sel        ),
 
         // vec_control_signals -> vec_csr_regs
-        .csrwr_en           (csrwr_en       ),
+        .csrwr_en           (csrwr_en        ),
+        .sew_eew_sel        (sew_eew_sel     ),
+        .vlmax_evlmax_sel   (vlmax_evlmax_sel),
+        .emul_vlmul_sel     (emul_vlmul_sel  ),
 
         // vec_control_signals -> vec_register_file
         .vec_reg_wr_en      (vec_reg_wr_en  ),
@@ -163,12 +173,14 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
         .mask_wr_en         (mask_wr_en     ),
         .data_mux1_sel      (data_mux1_sel  ),
         .data_mux2_sel      (data_mux2_sel  ),
+        .offset_vec_en      (offset_vec_en  ),
 
         // vec_control_signals -> vec_lsu
         .stride_sel         (stride_sel     ),
         .ld_inst            (ld_inst        ),
         .st_inst            (st_inst        ),
-        .index_str          (index_str      )
+        .index_str          (index_str      ),
+        .index_unordered    (index_unordered)
 
     );
 

@@ -50,6 +50,7 @@ logic   [`XLEN-1:0] inst_mem    [depth-1:0];
 //  Dummy Memory for testing
 logic   [7:0]   dummy_mem   [depth-1:0];
 logic   [7:0]   test_mem    [depth-1:0];
+logic   [`XLEN-1:0] addr_array [depth-1:0]
 
 
 
@@ -193,6 +194,7 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
             for (int i  = 0 ; i < depth ; i++ ) begin
                 inst_mem[i] = 'h0;
                 test_mem[i] = 'h0;
+                addr_array[i] = 'h0;
                 dummy_mem[i]= $random;
             end
             scalar_regfile[0] = 16;
@@ -234,10 +236,8 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
             step1_done = 0;
             step3_done = 0;
             i = 0;
-            current_instruction = VECTOR_PROCESSOR.inst_reg_instruction; // Update to the new instruction
-            // Initializing loaded data
-            loaded_data = 'h0;
-
+            current_instruction = instruction; // Update to the new instruction
+           
         end
         
         if (VECTOR_PROCESSOR.DATAPATH.VLSU.ld_inst)begin
@@ -277,10 +277,6 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                     // Monitor the load request (ld_req) at every positive edge of the clock
                    //@(posedge clk);
 
-                    // Dynamic data load logic for `loaded_data` based on the element width (sew).
-                    // Direct bit-slicing using variable `sew` is avoided due to simulator constraints.
-                    // Loop to handle loading data from memory when masking is not enabled.
-                    // Instead of assigning variable-width slices dynamically, load each bit of the element.
                     if (ld_req) begin
                         // Fetch the memory data for the current address immediately
                         mem2lsu_data = {dummy_mem[lsu2mem_addr + 15], dummy_mem[lsu2mem_addr + 14], 
@@ -299,40 +295,80 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
 
                         // Load each bit from the fetched data into `loaded_data`
                         
-                        if (!index_stride && (unit_stride || (const_stride && ($unsigned(rs2_data[7:0]) == 1))))begin
+                        // Define an index to track the next position in `addr_array`
+                        int addr_array_index = 0;
 
-                            for (int i = 0; i < `DATA_BUS/8 ; i++)begin
-                                test_mem[lsu2mem_addr + i] = mem2lsu_data[8*i +: 8]; 
-                            end        
-                            
-                        else begin     
+                        if (!index_stride && (unit_stride || (const_stride && ($unsigned(rs2_data[7:0]) == 1)))) begin
+                            // Handle unit stride or constant stride with a stride of 1
+                            for (int i = 0; i < `DATA_BUS / 8; i++) begin
+                                test_mem[lsu2mem_addr + i] <= mem2lsu_data[8 * i +: 8];
+                                addr_array[addr_array_index] <= lsu2mem_addr + i; // Store each address in the next index
+                                addr_array_index++; // Increment the index for the next address
+                            end
+                        end else begin
+                            // Handle other cases based on SEW
                             case (sew)
-                                7'd8:  test_mem[lsu2mem_addr] <= mem2lsu_data[7:0];
-                                7'd16:begin
-                                        test_mem[lsu2mem_addr]   <= mem2lsu_data[7:0];
-                                        test_mem[lsu2mem_addr+1] <= mem2lsu_data[15:8];
-                                end 
+                                7'd8: begin
+                                    test_mem[lsu2mem_addr] <= mem2lsu_data[7:0];
+                                    addr_array[addr_array_index] <= lsu2mem_addr;  // Store address
+                                    addr_array_index++; // Increment index
+                                end
+                                7'd16: begin
+                                    test_mem[lsu2mem_addr] <= mem2lsu_data[7:0];
+                                    test_mem[lsu2mem_addr + 1] <= mem2lsu_data[15:8];
+                                    addr_array[addr_array_index] <= lsu2mem_addr;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 1;
+                                    addr_array_index++;
+                                end
                                 7'd32: begin
-                                        test_mem[lsu2mem_addr]   <= mem2lsu_data[7:0];
-                                        test_mem[lsu2mem_addr+1] <= mem2lsu_data[15:8];
-                                        test_mem[lsu2mem_addr+2] <= mem2lsu_data[23:16];
-                                        test_mem[lsu2mem_addr+3] <= mem2lsu_data[31:24];
-                                end 
+                                    test_mem[lsu2mem_addr]     <= mem2lsu_data[7:0];
+                                    test_mem[lsu2mem_addr + 1] <= mem2lsu_data[15:8];
+                                    test_mem[lsu2mem_addr + 2] <= mem2lsu_data[23:16];
+                                    test_mem[lsu2mem_addr + 3] <= mem2lsu_data[31:24];
+                                    addr_array[addr_array_index] <= lsu2mem_addr;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 1;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 2;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 3;
+                                    addr_array_index++;
+                                end
                                 7'd64: begin
-                                        test_mem[lsu2mem_addr]   <= mem2lsu_data[7:0];
-                                        test_mem[lsu2mem_addr+1] <= mem2lsu_data[15:8];
-                                        test_mem[lsu2mem_addr+2] <= mem2lsu_data[23:16];
-                                        test_mem[lsu2mem_addr+3] <= mem2lsu_data[31:24];
-                                end 
-                                default: loaded_data[count_el-2] <= mem2lsu_data;
-                        endcase
+                                    test_mem[lsu2mem_addr] <= mem2lsu_data[7:0];
+                                    test_mem[lsu2mem_addr + 1] <= mem2lsu_data[15:8];
+                                    test_mem[lsu2mem_addr + 2] <= mem2lsu_data[23:16];
+                                    test_mem[lsu2mem_addr + 3] <= mem2lsu_data[31:24];
+                                    test_mem[lsu2mem_addr + 4] <= mem2lsu_data[39:32];
+                                    test_mem[lsu2mem_addr + 5] <= mem2lsu_data[47:40];
+                                    test_mem[lsu2mem_addr + 6] <= mem2lsu_data[55:48];
+                                    test_mem[lsu2mem_addr + 7] <= mem2lsu_data[63:56];
+                                    addr_array[addr_array_index] <= lsu2mem_addr;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 1;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 2;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 3;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 4;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 5;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 6;
+                                    addr_array_index++;
+                                    addr_array[addr_array_index] <= lsu2mem_addr + 7;
+                                    addr_array_index++;
+                                end
+                                default: begin
+                                    test_mem[lsu2mem_addr] <= mem2lsu_data;
+                                    addr_array[addr_array_index] <= lsu2mem_addr;
+                                    addr_array_index++;
+                                end
+                            endcase
                         end
-
-
-                        
-                        i++; // Increment index for the next element
-                   end
-                    @(posedge clk);
+                    end
                 end
             end      
         end
@@ -435,8 +471,74 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
             end
             i++; // Increment index for next element on subsequent load
         end
-   
+    endtask
+
+
+/******************************************************** MEMORY STORE OPERATION *********************************************************/
+    
+    task memory_data_store();
         
+        if (VECTOR_PROCESSOR.DATAPATH.VLSU.st_inst)begin
+            $display("Entering STORE");
+            // If the masking is enabled 
+            if (!instruction[25])begin
+                $display("STORE with masking");
+                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
+                    @(posedge clk);
+                    if (st_req)begin
+                                // Process each byte conditionally based on the write_strobe signal
+                        if (wr_strobe[0]) dumpy_mem[lsu2mem_addr]     = lsu2mem_data[7:0];
+                        if (wr_strobe[1]) dumpy_mem[lsu2mem_addr + 1] = lsu2mem_data[15:8];
+                        if (wr_strobe[2]) dumpy_mem[lsu2mem_addr + 2] = lsu2mem_data[23:16];
+                        if (wr_strobe[3]) dumpy_mem[lsu2mem_addr + 3] = lsu2mem_data[31:24];
+                        if (wr_strobe[4]) dumpy_mem[lsu2mem_addr + 4] = lsu2mem_data[39:32];
+                        if (wr_strobe[5]) dumpy_mem[lsu2mem_addr + 5] = lsu2mem_data[47:40];
+                        if (wr_strobe[6]) dumpy_mem[lsu2mem_addr + 6] = lsu2mem_data[55:48];
+                        if (wr_strobe[7]) dumpy_mem[lsu2mem_addr + 7] = lsu2mem_data[63:56];
+                        if (wr_strobe[8]) dumpy_mem[lsu2mem_addr + 8] = lsu2mem_data[71:64];
+                        if (wr_strobe[9]) dumpy_mem[lsu2mem_addr + 9] = lsu2mem_data[79:72];
+                        if (wr_strobe[10]) dumpy_mem[lsu2mem_addr + 10] = lsu2mem_data[87:80];
+                        if (wr_strobe[11]) dumpy_mem[lsu2mem_addr + 11] = lsu2mem_data[95:88];
+                        if (wr_strobe[12]) dumpy_mem[lsu2mem_addr + 12] = lsu2mem_data[103:96];
+                        if (wr_strobe[13]) dumpy_mem[lsu2mem_addr + 13] = lsu2mem_data[111:104];
+                        if (wr_strobe[14]) dumpy_mem[lsu2mem_addr + 14] = lsu2mem_data[119:112];
+                        if (wr_strobe[15]) dumpy_mem[lsu2mem_addr + 15] = lsu2mem_data[127:120];      
+                    end
+                end
+            end
+            // If masking is not enabled
+            else begin
+
+                $display("STORE with not masking");
+                   
+               while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded)) begin
+                    // Monitor the load request (st_req) at every positive edge of the clock
+                    @(posedge clk);
+
+                    if (st_req) begin
+                        
+                       // Process each byte conditionally based on the write_strobe signal
+                        if (wr_strobe[0]) dumpy_mem[lsu2mem_addr]     = lsu2mem_data[7:0];
+                        if (wr_strobe[1]) dumpy_mem[lsu2mem_addr + 1] = lsu2mem_data[15:8];
+                        if (wr_strobe[2]) dumpy_mem[lsu2mem_addr + 2] = lsu2mem_data[23:16];
+                        if (wr_strobe[3]) dumpy_mem[lsu2mem_addr + 3] = lsu2mem_data[31:24];
+                        if (wr_strobe[4]) dumpy_mem[lsu2mem_addr + 4] = lsu2mem_data[39:32];
+                        if (wr_strobe[5]) dumpy_mem[lsu2mem_addr + 5] = lsu2mem_data[47:40];
+                        if (wr_strobe[6]) dumpy_mem[lsu2mem_addr + 6] = lsu2mem_data[55:48];
+                        if (wr_strobe[7]) dumpy_mem[lsu2mem_addr + 7] = lsu2mem_data[63:56];
+                        if (wr_strobe[8]) dumpy_mem[lsu2mem_addr + 8] = lsu2mem_data[71:64];
+                        if (wr_strobe[9]) dumpy_mem[lsu2mem_addr + 9] = lsu2mem_data[79:72];
+                        if (wr_strobe[10]) dumpy_mem[lsu2mem_addr + 10] = lsu2mem_data[87:80];
+                        if (wr_strobe[11]) dumpy_mem[lsu2mem_addr + 11] = lsu2mem_data[95:88];
+                        if (wr_strobe[12]) dumpy_mem[lsu2mem_addr + 12] = lsu2mem_data[103:96];
+                        if (wr_strobe[13]) dumpy_mem[lsu2mem_addr + 13] = lsu2mem_data[111:104];
+                        if (wr_strobe[14]) dumpy_mem[lsu2mem_addr + 14] = lsu2mem_data[119:112];
+                        if (wr_strobe[15]) dumpy_mem[lsu2mem_addr + 15] = lsu2mem_data[127:120];
+            
+                    end
+                end
+            end      
+        end    
     endtask
 
 /*********************************************************************************************************************************************************/
@@ -481,6 +583,8 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
         
         instruction_issue(i);
         memory_data_fetch();
+        memory_data_store();
+
        
     endtask
  
@@ -592,17 +696,22 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
 
                 // Vector load instructions
                 V_LOAD: begin
+                                
+                $display("======================= LOAD COMPLETE ==========================");
+                        
+                end
 
-                                        
-                    if (loaded_data == vec_reg_data) begin
-                        $display("======================= TEST PASSED ==========================");
-                        $display("Loaded DATA : %h", vec_reg_data);
+                V_STORE: begin
+                    for (int i = 0 ; i < ; i++)begin
+                        if (test_mem(addr_array[i]) != dummy_mem(addr_arrayi))begin
+                            $display("======================= LOAD STORE TEST FAILED ==========================");
+                            $display("LOAD VALUE : %h",test_mem(addr_array[i]));
+                            $display("STORE VALUE : %h",dummy_mem(addr_array[i]));
+                            $display("ADDRESS : %h",addr_array[i]);
+                            break;         
+                        end
                     end
-                    else begin
-                        $display("======================= TEST FAILED ==========================");
-                        $display("ACTUAL LOADED DATA : %h",vec_reg_data);
-                        $display("EXPECTED_LOADED DATA : %h",loaded_data);
-                    end 
+                    $display("======================= LOAD STORE TEST PASS  ==========================");
                 end 
                 default:  ;  
             endcase
