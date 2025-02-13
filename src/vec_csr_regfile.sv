@@ -13,7 +13,6 @@ module vec_csr_regfile (
     // vec_decode -> vec_csr_regs
     input   logic   [`XLEN-1:0]     scalar2,    // vtype-csr
     input   logic   [`XLEN-1:0]     scalar1,    // vlen-csr / vstart-csr
-    input   logic                   mew,
     input   logic   [2:0]           width,      // width of memory element
 
     // vec_control_signals -> vec_csr_regs
@@ -67,7 +66,12 @@ always_ff @(posedge clk or negedge n_rst) begin
     if (!n_rst) begin
         csrwr_en_d <= 1'b0;
     end else begin
-        csrwr_en_d <= csrwr_en; // Store current state of csrwr_en
+        if (csr_done) begin
+            csrwr_en_d <= 1'b0;
+        end
+        else begin
+            csrwr_en_d <= csrwr_en; // Store current state of csrwr_en
+        end
     end
 end
 
@@ -186,7 +190,7 @@ end
 
 always_comb begin : eew_emul_evlmax_decoding
     // eew decoding
-    case (mew,width)
+    case (width)
         4'b0000:eew = 8;
         4'b0101:eew = 16;
         4'b0110:eew = 32;
@@ -195,7 +199,7 @@ always_comb begin : eew_emul_evlmax_decoding
     endcase
 
     // emul = eew/sew * lmul
-    case (mew,width)
+    case (width)
         4'b0000: begin // eew=8
             case (vlmul_e'(csr_vtype_q.vlmul))
                 LMUL_1: begin // vlmul=1
