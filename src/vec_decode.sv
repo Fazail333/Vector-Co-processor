@@ -2,36 +2,35 @@
 
 module vec_decode(
     // scalar_processor -> vec_decode
-    input logic [`XLEN-1:0]      vec_inst,
-    input logic [`XLEN-1:0]      rs1_data, 
-    input logic [`XLEN-1:0]      rs2_data,
+    input   logic [`XLEN-1:0]       vec_inst,
+    input   logic [`XLEN-1:0]       rs1_data, 
+    input   logic [`XLEN-1:0]       rs2_data,
 
     // vec_decode -> scalar_processor
-    output logic                is_vec,
+    output  logic                   is_vec,
 
     // vec_decode -> vec_regfile
-    output logic [`XLEN-1:0]    vec_read_addr_1,        // vs1_addr
-    output logic [`XLEN-1:0]    vec_read_addr_2,        // vs2_addr
-    output logic [`XLEN-1:0]    vec_read_addr_3,        // vs3_addr
-    output logic [`XLEN-1:0]    vec_write_addr,         // vd_addr
-    output logic [`MAX_VLEN-1:0]vec_imm,
-    output logic                vec_mask,
+    output  logic [`XLEN-1:0]       vec_read_addr_1,        // vs1_addr
+    output  logic [`XLEN-1:0]       vec_read_addr_2,        // vs2_addr
+    output  logic [`XLEN-1:0]       vec_write_addr,         // vd_addr
+    output  logic [`MAX_VLEN-1:0]   vec_imm,
+    output  logic                   vec_mask,
 
     // vec_decode -> vector load
-    output logic [2:0]          width,                  // width of memory element
-    output logic                mew,                    // selection bwtween fp or integer
-    output logic [2:0]          nf,                     // number of fields          
+    output  logic [2:0]             width,                  // width of memory element
+    output  logic                   mew,                    // selection bwtween fp or integer
+    output  logic [2:0]             nf,                     // number of fields          
 
     // vec_decode -> csr 
-    output logic [`XLEN-1:0]     scalar2,               // vector type or rs2
-    output logic [`XLEN-1:0]     scalar1,               // vector length or rs1 (base address)
+    output  logic [`XLEN-1:0]       scalar2,                // vector type or rs2
+    output  logic [`XLEN-1:0]       scalar1,                // vector length or rs1 (base address)
 
     // vec_control_signals -> vec_decode
-    input logic vl_sel,                 // selection for rs1_data or uimm
-    input logic vtype_sel,              // selection for rs2_data or zimm
-    input logic lumop_sel,              // selection lumop
-    input logic rs1rd_de,               // selection for VLMAX or comparator
-    input logic rs1_sel                 // selection for rs1_data
+    input   logic                   vl_sel,                 // selection for rs1_data or uimm
+    input   logic                   vtype_sel,              // selection for rs2_data or zimm
+    input   logic                   lumop_sel,              // selection lumop
+    input   logic                   rs1rd_de,               // selection for VLMAX or comparator
+    input   logic                   rs1_sel                 // selection for rs1_data
 );
 
 v_opcode_e      vopcode;
@@ -55,7 +54,6 @@ logic [10:0]         zimm;          // zero-extended immediate
 logic [4:0]          uimm;          // unsigned immediate
 
 assign vopcode  = v_opcode_e'(vec_inst[6:0]);
-assign vs3_addr = vec_inst[11:7];
 assign vd_addr  = vec_inst[11:7];
 assign vfunc3   = v_func3_e'(vec_inst[14:12]);
 assign vs1_addr = vec_inst[19:15];
@@ -80,7 +78,6 @@ always_comb begin : vec_decode
     vec_write_addr  = '0;
     vec_read_addr_1 = '0;
     vec_read_addr_2 = '0;
-    vec_read_addr_3 = '0;
     vec_imm         = '0;
     vec_mask        = '0;
     rs1_o           = '0;
@@ -186,7 +183,7 @@ always_comb begin : vec_decode
         // Vector Store instructions
         V_STORE: begin
             is_vec          = 1'b1;
-            vec_read_addr_3 = vs3_addr;
+            vec_write_addr  = vd_addr;
             vec_imm         = '0;
             vec_mask        = vm;
             mew             = vec_inst[28];
@@ -207,7 +204,6 @@ always_comb begin : vec_decode
             vec_write_addr  = '0;
             vec_read_addr_1 = '0;
             vec_read_addr_2 = '0;
-            vec_read_addr_3 = '0;
             vec_imm         = '0;
             vec_mask        = '0;
             rs1_o           = '0;
