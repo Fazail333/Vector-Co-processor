@@ -16,7 +16,7 @@ module vec_regfile (
     input   logic                           wr_en,             // The enable signal to write in the vector register 
     input   logic   [3:0]                   lmul,              // LMUL value (controls register granularity)
     input   logic   [3:0]                   emul,              // EMUL value (controls register granularity)
-    input   logic                           offset_vec_en      // Tells the rdata2 vector is offset vector and will be chosen on base of emul
+    input   logic                           offset_vec_en,     // Tells the rdata2 vector is offset vector and will be chosen on base of emul
     input   logic                           mask_operation,    // This signal tell this instruction is going to perform mask register update 
     input   logic                           mask_wr_en,        // This the enable signal for updating the mask value                                                
     // Outputs 
@@ -56,6 +56,8 @@ module vec_regfile (
     // Address validation and read operation
     always_comb begin
         rdata_1          = 'h0;
+        rdata_2_emul     = 'h0;
+        rdata_2_lmul     = 'h0;
         rdata_2          = 'h0;
         dst_data         = 'h0;
         addr_error       =   0;
@@ -70,12 +72,13 @@ module vec_regfile (
         end
         // Read operation for rdata_1, rdata_2, and dst_data based on lmul
         else begin
+            
             case (emul)
                 4'b0001: begin // EMUL = 1
                     if (raddr_2 >= `MAX_VEC_REGISTERS) begin
                         addr_error_emul = 1;
                     end else begin
-                       rdata_2_emul = vec_regfile[raddr_2];                        
+                    rdata_2_emul = vec_regfile[raddr_2];                        
                     end
                 end
                 4'b0010: begin // EMUL = 2
@@ -103,11 +106,9 @@ module vec_regfile (
                 default: begin 
                     rdata_2_emul = 'h0;
                     addr_error_emul = 1;  // Flag an error for invalid EMUL
-                    $display("ERROR: Invalid EMUL value: %b", emul);
-                    $fatal("Invalid EMUL: %b. Reserved configuration!", emul);
                 end
-
             endcase
+
             case (lmul)
                 4'b0001: begin // LMUL = 1
                     if (raddr_1 >= `MAX_VEC_REGISTERS || raddr_2 >= `MAX_VEC_REGISTERS || waddr >= `MAX_VEC_REGISTERS) begin
@@ -155,18 +156,18 @@ module vec_regfile (
                     
                     rdata_1      = 'h0;
                     rdata_2_lmul = 'h0;
+                    rdata_2_emul = 'h0;
                     dst_data     = 'h0;
                     addr_error   = 1;  // Flag an error for invalid LMUL
-                    $display("ERROR: Invalid LMUL value: %b", lmul);
-                    $fatal("Invalid LMUL: %b. Reserved configuration!", lmul);
                 end
 
             endcase
-        end  
+        end
+        // RDATA2 MUX for selection b/w data based on lmul and emul
+        rdata_2 = (offset_vec_en) ? rdata_2_emul : rdata_2_lmul;  
     end
-     // RDATA2 MUX for selection b/w data based on lmul and emul
-    assign rdata_2 = (offset_vec_en) ? rdata_2_emul : rdata_2_lmul;
-
+     
+    
     // Write operation and error handling for both read and write addresses
     always_ff @(negedge clk or negedge reset) begin
         if (!reset) begin
