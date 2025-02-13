@@ -34,11 +34,11 @@ logic   [4:0]               rs2_addr;
 logic   [`DATA_BUS-1:0]     mem2lsu_data;
 
 // Output from  vec_lsu -> main_memory
-logic   [`XLEN-1:0]         lsu2mem_addr,           // Gives the memory address to load or store data
-logic                       ld_req,                 // load request signal to the memory
-logic                       st_req,                 // store request signal to the memory
-logic   [`DATA_BUS-1:0]     lsu2mem_data,           // Data to be stored
-logic   [WR_STROB-1:0]      wr_strobe,              // THE bytes of the DATA_BUS that contains the actual data 
+logic   [`XLEN-1:0]         lsu2mem_addr;           // Gives the memory address to load or store data
+logic                       ld_req;                 // load request signal to the memory
+logic                       st_req;                 // store request signal to the memory
+logic   [`DATA_BUS-1:0]     lsu2mem_data;           // Data to be stored
+logic   [WR_STROB-1:0]      wr_strobe;              // THE bytes of the DATA_BUS that contains the actual data 
 
    
 // Register file to hold scalar register values (can be initialized as needed)
@@ -50,7 +50,7 @@ logic   [`XLEN-1:0] inst_mem    [depth-1:0];
 //  Dummy Memory for testing
 logic   [7:0]   dummy_mem   [depth-1:0];
 logic   [7:0]   test_mem    [depth-1:0];
-logic   [`XLEN-1:0] addr_array [depth-1:0]
+logic   [`XLEN-1:0] addr_array [depth-1:0];
 
 
 
@@ -72,6 +72,7 @@ logic               inst_valid;             // tells that instruction and data r
 int i = 0; // Declare i globally or persist across loads
 bit step1_done = 0;
 bit step3_done = 0;
+int addr_array_index = 0;                           // Define an index to track the next position in `addr_array`
 logic [`XLEN-1:0] current_instruction = 'h0;        // Keep track of the current instruction
 logic [`MAX_VLEN-1:0]loaded_data;                   // loaded data for comparison
 /****************************************************************************************************************************/
@@ -236,6 +237,7 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
             step1_done = 0;
             step3_done = 0;
             i = 0;
+            addr_array_index = 0;
             current_instruction = instruction; // Update to the new instruction
            
         end
@@ -275,7 +277,7 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                    
                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded)) begin
                     // Monitor the load request (ld_req) at every positive edge of the clock
-                   //@(posedge clk);
+                   @(posedge clk);
 
                     if (ld_req) begin
                         // Fetch the memory data for the current address immediately
@@ -294,10 +296,6 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                                 dummy_mem[lsu2mem_addr+1], dummy_mem[lsu2mem_addr]);
 
                         // Load each bit from the fetched data into `loaded_data`
-                        
-                        // Define an index to track the next position in `addr_array`
-                        int addr_array_index = 0;
-
                         if (!index_stride && (unit_stride || (const_stride && ($unsigned(rs2_data[7:0]) == 1)))) begin
                             // Handle unit stride or constant stride with a stride of 1
                             for (int i = 0; i < `DATA_BUS / 8; i++) begin
@@ -487,28 +485,27 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                     @(posedge clk);
                     if (st_req)begin
                                 // Process each byte conditionally based on the write_strobe signal
-                        if (wr_strobe[0]) dumpy_mem[lsu2mem_addr]     = lsu2mem_data[7:0];
-                        if (wr_strobe[1]) dumpy_mem[lsu2mem_addr + 1] = lsu2mem_data[15:8];
-                        if (wr_strobe[2]) dumpy_mem[lsu2mem_addr + 2] = lsu2mem_data[23:16];
-                        if (wr_strobe[3]) dumpy_mem[lsu2mem_addr + 3] = lsu2mem_data[31:24];
-                        if (wr_strobe[4]) dumpy_mem[lsu2mem_addr + 4] = lsu2mem_data[39:32];
-                        if (wr_strobe[5]) dumpy_mem[lsu2mem_addr + 5] = lsu2mem_data[47:40];
-                        if (wr_strobe[6]) dumpy_mem[lsu2mem_addr + 6] = lsu2mem_data[55:48];
-                        if (wr_strobe[7]) dumpy_mem[lsu2mem_addr + 7] = lsu2mem_data[63:56];
-                        if (wr_strobe[8]) dumpy_mem[lsu2mem_addr + 8] = lsu2mem_data[71:64];
-                        if (wr_strobe[9]) dumpy_mem[lsu2mem_addr + 9] = lsu2mem_data[79:72];
-                        if (wr_strobe[10]) dumpy_mem[lsu2mem_addr + 10] = lsu2mem_data[87:80];
-                        if (wr_strobe[11]) dumpy_mem[lsu2mem_addr + 11] = lsu2mem_data[95:88];
-                        if (wr_strobe[12]) dumpy_mem[lsu2mem_addr + 12] = lsu2mem_data[103:96];
-                        if (wr_strobe[13]) dumpy_mem[lsu2mem_addr + 13] = lsu2mem_data[111:104];
-                        if (wr_strobe[14]) dumpy_mem[lsu2mem_addr + 14] = lsu2mem_data[119:112];
-                        if (wr_strobe[15]) dumpy_mem[lsu2mem_addr + 15] = lsu2mem_data[127:120];      
+                        if (wr_strobe[0]) dummy_mem[lsu2mem_addr]     = lsu2mem_data[7:0];
+                        if (wr_strobe[1]) dummy_mem[lsu2mem_addr + 1] = lsu2mem_data[15:8];
+                        if (wr_strobe[2]) dummy_mem[lsu2mem_addr + 2] = lsu2mem_data[23:16];
+                        if (wr_strobe[3]) dummy_mem[lsu2mem_addr + 3] = lsu2mem_data[31:24];
+                        if (wr_strobe[4]) dummy_mem[lsu2mem_addr + 4] = lsu2mem_data[39:32];
+                        if (wr_strobe[5]) dummy_mem[lsu2mem_addr + 5] = lsu2mem_data[47:40];
+                        if (wr_strobe[6]) dummy_mem[lsu2mem_addr + 6] = lsu2mem_data[55:48];
+                        if (wr_strobe[7]) dummy_mem[lsu2mem_addr + 7] = lsu2mem_data[63:56];
+                        if (wr_strobe[8]) dummy_mem[lsu2mem_addr + 8] = lsu2mem_data[71:64];
+                        if (wr_strobe[9]) dummy_mem[lsu2mem_addr + 9] = lsu2mem_data[79:72];
+                        if (wr_strobe[10]) dummy_mem[lsu2mem_addr + 10] = lsu2mem_data[87:80];
+                        if (wr_strobe[11]) dummy_mem[lsu2mem_addr + 11] = lsu2mem_data[95:88];
+                        if (wr_strobe[12]) dummy_mem[lsu2mem_addr + 12] = lsu2mem_data[103:96];
+                        if (wr_strobe[13]) dummy_mem[lsu2mem_addr + 13] = lsu2mem_data[111:104];
+                        if (wr_strobe[14]) dummy_mem[lsu2mem_addr + 14] = lsu2mem_data[119:112];
+                        if (wr_strobe[15]) dummy_mem[lsu2mem_addr + 15] = lsu2mem_data[127:120];      
                     end
                 end
             end
             // If masking is not enabled
             else begin
-
                 $display("STORE with not masking");
                    
                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded)) begin
@@ -518,22 +515,22 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                     if (st_req) begin
                         
                        // Process each byte conditionally based on the write_strobe signal
-                        if (wr_strobe[0]) dumpy_mem[lsu2mem_addr]     = lsu2mem_data[7:0];
-                        if (wr_strobe[1]) dumpy_mem[lsu2mem_addr + 1] = lsu2mem_data[15:8];
-                        if (wr_strobe[2]) dumpy_mem[lsu2mem_addr + 2] = lsu2mem_data[23:16];
-                        if (wr_strobe[3]) dumpy_mem[lsu2mem_addr + 3] = lsu2mem_data[31:24];
-                        if (wr_strobe[4]) dumpy_mem[lsu2mem_addr + 4] = lsu2mem_data[39:32];
-                        if (wr_strobe[5]) dumpy_mem[lsu2mem_addr + 5] = lsu2mem_data[47:40];
-                        if (wr_strobe[6]) dumpy_mem[lsu2mem_addr + 6] = lsu2mem_data[55:48];
-                        if (wr_strobe[7]) dumpy_mem[lsu2mem_addr + 7] = lsu2mem_data[63:56];
-                        if (wr_strobe[8]) dumpy_mem[lsu2mem_addr + 8] = lsu2mem_data[71:64];
-                        if (wr_strobe[9]) dumpy_mem[lsu2mem_addr + 9] = lsu2mem_data[79:72];
-                        if (wr_strobe[10]) dumpy_mem[lsu2mem_addr + 10] = lsu2mem_data[87:80];
-                        if (wr_strobe[11]) dumpy_mem[lsu2mem_addr + 11] = lsu2mem_data[95:88];
-                        if (wr_strobe[12]) dumpy_mem[lsu2mem_addr + 12] = lsu2mem_data[103:96];
-                        if (wr_strobe[13]) dumpy_mem[lsu2mem_addr + 13] = lsu2mem_data[111:104];
-                        if (wr_strobe[14]) dumpy_mem[lsu2mem_addr + 14] = lsu2mem_data[119:112];
-                        if (wr_strobe[15]) dumpy_mem[lsu2mem_addr + 15] = lsu2mem_data[127:120];
+                        if (wr_strobe[0]) dummy_mem[lsu2mem_addr]     = lsu2mem_data[7:0];
+                        if (wr_strobe[1]) dummy_mem[lsu2mem_addr + 1] = lsu2mem_data[15:8];
+                        if (wr_strobe[2]) dummy_mem[lsu2mem_addr + 2] = lsu2mem_data[23:16];
+                        if (wr_strobe[3]) dummy_mem[lsu2mem_addr + 3] = lsu2mem_data[31:24];
+                        if (wr_strobe[4]) dummy_mem[lsu2mem_addr + 4] = lsu2mem_data[39:32];
+                        if (wr_strobe[5]) dummy_mem[lsu2mem_addr + 5] = lsu2mem_data[47:40];
+                        if (wr_strobe[6]) dummy_mem[lsu2mem_addr + 6] = lsu2mem_data[55:48];
+                        if (wr_strobe[7]) dummy_mem[lsu2mem_addr + 7] = lsu2mem_data[63:56];
+                        if (wr_strobe[8]) dummy_mem[lsu2mem_addr + 8] = lsu2mem_data[71:64];
+                        if (wr_strobe[9]) dummy_mem[lsu2mem_addr + 9] = lsu2mem_data[79:72];
+                        if (wr_strobe[10]) dummy_mem[lsu2mem_addr + 10] = lsu2mem_data[87:80];
+                        if (wr_strobe[11]) dummy_mem[lsu2mem_addr + 11] = lsu2mem_data[95:88];
+                        if (wr_strobe[12]) dummy_mem[lsu2mem_addr + 12] = lsu2mem_data[103:96];
+                        if (wr_strobe[13]) dummy_mem[lsu2mem_addr + 13] = lsu2mem_data[111:104];
+                        if (wr_strobe[14]) dummy_mem[lsu2mem_addr + 14] = lsu2mem_data[119:112];
+                        if (wr_strobe[15]) dummy_mem[lsu2mem_addr + 15] = lsu2mem_data[127:120];
             
                     end
                 end
@@ -633,11 +630,13 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                                 1'b0: begin
                                     if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[30:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_rs1_data) )begin
                                         $display("======================= TEST PASSED ==========================");
+                                        $display("Instruction : %h",instruction);
                                         $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                         $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
                                     end
                                     else begin
                                         $display("======================= TEST FAILED ==========================");
+                                        $display("Instruction : %h",instruction);
                                         $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                         $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[30:20]);
                                         $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
@@ -652,11 +651,13 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                                         1'b1: begin
                                             if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[29:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_instruction[19:15]) )begin
                                                 $display("======================= TEST PASSED ==========================");
+                                                $display("Instruction : %h",instruction);
                                                 $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                                 $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
                                             end
                                             else begin
                                                 $display("======================= TEST FAILED ==========================");
+                                                $display("Instruction : %h",instruction);
                                                 $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                                 $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[29:20]);
                                                 $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
@@ -670,11 +671,13 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                                             
                                             if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_rs2_data) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_rs1_data) )begin
                                                 $display("======================= TEST PASSED ==========================");
+                                                $display("Instruction : %h",instruction);
                                                 $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                                 $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
                                             end
                                             else begin
                                                 $display("======================= TEST FAILED ==========================");
+                                                $display("Instruction : %h",instruction);
                                                 $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                                 $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_rs2_data);
                                                 $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
@@ -698,20 +701,22 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                 V_LOAD: begin
                                 
                 $display("======================= LOAD COMPLETE ==========================");
-                        
+                $display("Instruction : %h",instruction);        
                 end
 
                 V_STORE: begin
-                    for (int i = 0 ; i < ; i++)begin
-                        if (test_mem(addr_array[i]) != dummy_mem(addr_arrayi))begin
+                    for (int i = 0 ; i < addr_array_index; i++)begin
+                        if (test_mem[addr_array[i]] != dummy_mem[addr_array[i]])begin
                             $display("======================= LOAD STORE TEST FAILED ==========================");
-                            $display("LOAD VALUE : %h",test_mem(addr_array[i]));
-                            $display("STORE VALUE : %h",dummy_mem(addr_array[i]));
+                            $display("Instruction : %h",instruction);
+                            $display("LOAD VALUE : %h",test_mem[addr_array[i]]);
+                            $display("STORE VALUE : %h",dummy_mem[addr_array[i]]);
                             $display("ADDRESS : %h",addr_array[i]);
                             break;         
                         end
                     end
                     $display("======================= LOAD STORE TEST PASS  ==========================");
+                    $display("Instruction : %h",instruction);
                 end 
                 default:  ;  
             endcase
