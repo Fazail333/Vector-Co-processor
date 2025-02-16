@@ -625,31 +625,69 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                         
                         // vector configuration instructions
                         CONF: begin
-                            case (VECTOR_PROCESSOR.inst_reg_instruction[31]== 1)
+                            case (VECTOR_PROCESSOR.inst_reg_instruction[31])
                             // VSETVLI
                                 1'b0: begin
-                                    if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[30:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_rs1_data) )begin
-                                        $display("======================= TEST PASSED ==========================");
-                                        $display("Instruction : %h",instruction);
-                                        $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
-                                        $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                    if (VECTOR_PROCESSOR.inst_reg_instruction[19:15] == 0) begin // RS1_Addr == 0
+                                        if (VECTOR_PROCESSOR.inst_reg_instruction[11:7] == 0 )begin // Rd_Addr ==  0
+                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[30:20]) && 
+                                                (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q) )begin
+                                                $display("======================= TEST PASSED ==========================");
+                                                $display("Instruction : %h",instruction);
+                                                $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                            end
+                                            else begin
+                                                $display("======================= TEST FAILED ==========================");
+                                                $display("Instruction : %h",instruction);
+                                                $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[30:20]);
+                                                $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);    
+                                            end
+                                        end    
+                                        else begin  // Rd_ADDR != 0
+                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[30:20]) && 
+                                                (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlmax) )begin
+                                                $display("======================= TEST PASSED ==========================");
+                                                $display("Instruction : %h",instruction);
+                                                $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                            end
+                                            else begin
+                                                $display("======================= TEST FAILED ==========================");
+                                                $display("Instruction : %h",instruction);
+                                                $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[30:20]);
+                                                $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlmax); 
+                                            end
+                                        end 
                                     end
                                     else begin
-                                        $display("======================= TEST FAILED ==========================");
-                                        $display("Instruction : %h",instruction);
-                                        $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
-                                        $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[30:20]);
-                                        $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
-                                        $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.inst_reg_rs1_data);
-                                        
+                                        if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[30:20]) && 
+                                            (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlen_compare) )begin
+                                            $display("======================= TEST PASSED ==========================");
+                                            $display("Instruction : %h",instruction);
+                                            $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                            $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                        end
+                                        else begin
+                                            $display("======================= TEST FAILED ==========================");
+                                            $display("Instruction : %h",instruction);
+                                            $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                            $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[30:20]);
+                                            $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                            $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlen_compare);
+                                        end
                                     end
-                                    
                                 end
                                 1'b1: begin
-                                    case (VECTOR_PROCESSOR.inst_reg_instruction[30]== 1)
+                                    case (VECTOR_PROCESSOR.inst_reg_instruction[30])
                                     // VSETIVLI
                                         1'b1: begin
-                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[29:20]) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_instruction[19:15]) )begin
+                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_instruction[29:20]) && 
+                                                (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlen_compare) )begin
                                                 $display("======================= TEST PASSED ==========================");
                                                 $display("Instruction : %h",instruction);
                                                 $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
@@ -661,30 +699,65 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
                                                 $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
                                                 $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[29:20]);
                                                 $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
-                                                $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.inst_reg_instruction[19:15]);
-                                                
+                                                $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlen_compare);    
                                             end
-
                                         end
                                     // VSETVL
                                         1'b0: begin
-                                            
-                                            if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_rs2_data) && (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.inst_reg_rs1_data) )begin
-                                                $display("======================= TEST PASSED ==========================");
-                                                $display("Instruction : %h",instruction);
-                                                $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
-                                                $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                        
+                                            if (VECTOR_PROCESSOR.inst_reg_instruction[19:15] == 0) begin // RS1_Addr == 0
+                                                if (VECTOR_PROCESSOR.inst_reg_instruction[11:7] == 0 )begin // Rd_Addr ==  0
+                                                    if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_rs2_data) && 
+                                                        (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q) )begin
+                                                        $display("======================= TEST PASSED ==========================");
+                                                        $display("Instruction : %h",instruction);
+                                                        $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                        $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                    end
+                                                    else begin
+                                                        $display("======================= TEST FAILED ==========================");
+                                                        $display("Instruction : %h",instruction);
+                                                        $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                        $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_rs2_data);
+                                                        $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                        $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);    
+                                                    end
+                                                end    
+                                                else begin  // Rd_ADDR != 0
+                                                    if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_rs2_data) && 
+                                                        (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlmax) )begin
+                                                        $display("======================= TEST PASSED ==========================");
+                                                        $display("Instruction : %h",instruction);
+                                                        $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                        $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                    end
+                                                    else begin
+                                                        $display("======================= TEST FAILED ==========================");
+                                                        $display("Instruction : %h",instruction);
+                                                        $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                        $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_rs2_data);
+                                                        $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                        $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlmax); 
+                                                    end
+                                                end 
                                             end
                                             else begin
-                                                $display("======================= TEST FAILED ==========================");
-                                                $display("Instruction : %h",instruction);
-                                                $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
-                                                $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_rs2_data);
-                                                $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
-                                                $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.inst_reg_rs1_data);
-                                                
-                                            end
-                                            
+                                                if ((VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q == VECTOR_PROCESSOR.inst_reg_rs2_data) && 
+                                                    (VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q == VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlen_compare) )begin
+                                                    $display("======================= TEST PASSED ==========================");
+                                                    $display("Instruction : %h",instruction);
+                                                    $display("VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                    $display("VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                end
+                                                else begin
+                                                    $display("======================= TEST FAILED ==========================");
+                                                    $display("Instruction : %h",instruction);
+                                                    $display("ACTUAL_VTYPE Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vtype_q);
+                                                    $display("EXPECTED_VTYPE Value : %d",VECTOR_PROCESSOR.inst_reg_rs2_data);
+                                                    $display("ACTUAL_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.csr_vl_q);
+                                                    $display("EXPECTED_VL Value : %d",VECTOR_PROCESSOR.DATAPATH.CSR_REGFILE.vlen_compare);
+                                                end
+                                            end  
                                         end
                                     default: ;
                                     endcase
