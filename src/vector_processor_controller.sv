@@ -6,15 +6,12 @@ module vector_processor_controller (
 
     // scalar_processor -> vector_extension
     input logic [`XLEN-1:0]     vec_inst,
-
-        
-
+    
     // vec_control_signals -> vec_decode
     output  logic               vl_sel,             // selection for rs1_data or uimm
     output  logic               vtype_sel,          // selection for rs2_data or zimm
     output  logic               lumop_sel,          // selection lumop
     output  logic               rs1rd_de,           // selection for VLMAX or comparator
-    output  logic               rs1_sel,            // selection for rs1_data
 
     // vec_control_signals -> vec_csr
     output  logic                csrwr_en,
@@ -42,6 +39,8 @@ module vector_processor_controller (
 v_opcode_e      vopcode;
 v_func3_e       vfunc3;
 logic [1:0]     mop;
+logic [4:0]     rs1_addr;
+logic [4:0]     rd_addr;
 
 assign vopcode  = v_opcode_e'(vec_inst[6:0]);
 
@@ -55,22 +54,22 @@ assign rs1_addr = vec_inst[19:15];
 assign rd_addr = vec_inst[11:7];
 
 always_comb begin
-    lumop_sel       = '0;
-    rs1_sel         = '0;
-    csrwr_en        = '0;
-    vl_sel          = '0;
-    vtype_sel       = '0;
-    data_mux1_sel   = 2'b00;
-    data_mux2_sel   = 1'b0;
-    stride_sel      = 1'b0;
-    ld_inst         = 1'b0;
-    st_inst         = 1'b0;
-    index_str       = 1'b0;
-    index_unordered = 1'b0;
-    offset_vec_en   = 1'b0;
-    sew_eew_sel     = 1'b0;
-    vlmax_evlmax_sel = 1'b0;
-    emul_vlmul_sel  = 1'b0;
+    lumop_sel           = 0;
+    csrwr_en            = 0;
+    vl_sel              = 0;
+    rs1rd_de            = 1;
+    vtype_sel           = 0;
+    data_mux1_sel       = 2'b00;
+    data_mux2_sel       = 1'b0;
+    stride_sel          = 1'b0;
+    ld_inst             = 1'b0;
+    st_inst             = 1'b0;
+    index_str           = 1'b0;
+    index_unordered     = 1'b0;
+    offset_vec_en       = 1'b0;
+    sew_eew_sel         = 1'b0;
+    vlmax_evlmax_sel    = 1'b0;
+    emul_vlmul_sel      = 1'b0;
     
     case (vopcode)
     V_ARITH: begin
@@ -81,16 +80,12 @@ always_comb begin
                 case(vec_inst[31])
                 // VSETVLI
                     1'b0: begin
-                        vl_sel    = '0;
+                        vl_sel    = 0;
                         vtype_sel =  1;     //zimm selection
-                        if ((rs1_addr == '0) && (rd_addr == '0)) begin
-                            rs1rd_de = '0;
-                            rs1_sel  = 1;
-                        end
-                        else begin 
+                        if ((rs1_addr == 0) && (rd_addr != 0)) 
+                            rs1rd_de = 0;
+                        else 
                             rs1rd_de = 1;
-                            rs1_sel  = '0;
-                        end
                     end
                     1'b1: begin
                         case (vec_inst[30])
@@ -99,26 +94,20 @@ always_comb begin
                             vl_sel    = 1;
                             vtype_sel = 1;
                             rs1rd_de  = 1;
-                            rs1_sel   = 0;
                         end
                     // VSETIVL
                         1'b0: begin
-                            vl_sel    = '0;
-                            vtype_sel = '0;
-                            if ((rs1_addr == '0) && (rd_addr == '0)) begin
+                            vl_sel    = 0;
+                            vtype_sel = 0;
+                            if ((rs1_addr == 0) && (rd_addr != 0)) 
                                 rs1rd_de = 0;
-                                rs1_sel  = 1;
-                            end
-                            else begin
+                            else 
                                 rs1rd_de = 1;
-                                rs1_sel  = 0;
-                            end
                         end
                         default: begin
                             vl_sel    = 0;
                             vtype_sel = 0;
                             rs1rd_de  = 1;
-                            rs1_sel   = 1;
                         end
                         endcase
                     end
@@ -126,24 +115,20 @@ always_comb begin
                         vl_sel    = 0;
                         vtype_sel = 0;
                         rs1rd_de  = 1;
-                        rs1_sel   = 1;
                     end
                 endcase
             end
             default: 
             begin
-                csrwr_en  = '0;
-                vl_sel    = '0;
-                vtype_sel = '0;
-                rs1rd_de  =  1;
-                rs1_sel   =  1;
+                csrwr_en  = 0;
+                vl_sel    = 0;
+                vtype_sel = 0;
+                rs1rd_de  = 1;
             end
         endcase
     end
     V_LOAD: begin
-        rs1_sel         = 1;        // selection for base address
         vl_sel          = 0;
-        rs1rd_de        = 1;
         vec_reg_wr_en   = 1;
         mask_operation  = 0;
         mask_wr_en      = 0;
@@ -199,13 +184,14 @@ always_comb begin
                 stride_sel      = 1'b1;     // unit stride
                 offset_vec_en   = 1'b0;     // vector as offset
                 index_unordered = 1'b0;
+                sew_eew_sel     = 1'b0;     // sew selected
+                vlmax_evlmax_sel= 1'b0;     // evlmax selected
+                emul_vlmul_sel  = 1'b0;     // vlmul selected
             end
         endcase
     end
     V_STORE: begin
-        rs1_sel         = 1;        // selection for base address
         vl_sel          = 0;
-        rs1rd_de        = 1;
         vec_reg_wr_en   = 1;
         mask_operation  = 0;
         mask_wr_en      = 0;
@@ -261,6 +247,9 @@ always_comb begin
                 stride_sel      = 1'b1;     // unit stride
                 offset_vec_en   = 1'b0;     // vector as offset
                 index_unordered = 1'b0;
+                sew_eew_sel     = 1'b0;     // sew selected
+                vlmax_evlmax_sel= 1'b0;     // evlmax selected
+                emul_vlmul_sel  = 1'b0;     // vlmul selected
             end
         endcase
     end
@@ -270,7 +259,6 @@ always_comb begin
         vtype_sel       = 0;
         rs1rd_de        = 1;
         lumop_sel       = 0;
-        rs1_sel         = 1;
         vec_reg_wr_en   = 1;
         mask_operation  = 0;
         mask_wr_en      = 0;
@@ -282,8 +270,10 @@ always_comb begin
         index_str       = 1'b0;
         index_unordered = 1'b0;
         offset_vec_en   = 1'b0;
+        sew_eew_sel     = 1'b0;     
+        vlmax_evlmax_sel= 1'b0;     
+        emul_vlmul_sel  = 1'b0;     
 
-    
     end
     endcase    
 end
