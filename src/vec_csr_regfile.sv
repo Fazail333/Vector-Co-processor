@@ -10,6 +10,8 @@ module vec_csr_regfile (
     // csr_regfile -> scalar_processor
     output  logic   [`XLEN-1:0]     csr_out,
 
+    // vec_controller -> csr
+    input   logic                   rs1rd_de,   // selection for VLMAX or comparator
     // vec_decode -> vec_csr_regs
     input   logic   [`XLEN-1:0]     scalar2,    // vtype-csr
     input   logic   [`XLEN-1:0]     scalar1,    // vlen-csr / vstart-csr
@@ -32,11 +34,12 @@ module vec_csr_regfile (
     output  logic                   csr_done           // This signal tells that csr instruction has been implemented successfully.       
 );
 
+
 csr_vtype_s         csr_vtype_q;
 logic [`XLEN-1:0]   csr_vl_q;
 logic [`XLEN-1:0]   csr_vstart_d, csr_vstart_q;
 logic               illegal_insn;
-
+logic [`XLEN-1:0]   vl,vlen_compare;  
 // instruction decode
 logic [6:0]     opcode;
 logic [4:0]     rs1_addr;
@@ -87,14 +90,71 @@ always_ff @(posedge clk, negedge n_rst) begin
         csr_done              <= '0;
     end
     else if (csrwr_en && !csrwr_en_d) begin
+         // **Step 1: Update vtype FIRST**
         csr_vtype_q.ill   <= '0;
         csr_vtype_q.vma   <= scalar2[7];
         csr_vtype_q.vta   <= scalar2[6];
         csr_vtype_q.vsew  <= scalar2[5:3];
         csr_vtype_q.vlmul <= scalar2[2:0];
-        csr_vl_q          <= scalar1;
-        csr_done          <= 1'b1;
+        
+        // **Step 2: Compute vlmax based on updated vtype**
+        case (vlmul_e'(scalar2[2:0]))  // Using new vlmul
+            LMUL_1: begin
+                case(vew_e'(scalar2[5:3]))  // Using new vsew
+                    EW8:    vlmax = 64;
+                    EW16:   vlmax = 32;
+                    EW32:   vlmax = 16;
+                    EW64:   vlmax = 8;
+                    default: vlmax = 16;
+                endcase
+            end
+            LMUL_2: begin
+                case(vew_e'(scalar2[5:3]))
+                    EW8:    vlmax = 128;
+                    EW16:   vlmax = 64;
+                    EW32:   vlmax = 32;
+                    EW64:   vlmax = 16;
+                    default: vlmax = 32;
+                endcase
+            end
+            LMUL_4: begin
+                case(vew_e'(scalar2[5:3]))
+                    EW8:    vlmax = 256;
+                    EW16:   vlmax = 128;
+                    EW32:   vlmax = 64;
+                    EW64:   vlmax = 32;
+                    default: vlmax = 64;
+                endcase
+            end
+            LMUL_8: begin
+                case(vew_e'(scalar2[5:3]))
+                    EW8:    vlmax = 512;
+                    EW16:   vlmax = 256;
+                    EW32:   vlmax = 128;
+                    EW64:   vlmax = 64;
+                    default: vlmax = 128;
+                endcase
+            end
+            default: vlmax = 16;
+        endcase
 
+        // **Step 3: Compute AVL using updated vlmax**
+        vlen_compare = (scalar1 > vlmax) ? vlmax : scalar1;
+
+        case (rs1rd_de)
+            1'b0: vl = vlmax;         // rs1 == x0
+            1'b1: vl = vlen_compare;  // rs1 != x0
+            default: vl = vlmax;
+        endcase
+
+        // **Step 4: Update VL register after vtype is set**
+        if ((inst[19:15] == 0) && (inst[11:7] == 0))
+            csr_vl_q <= csr_vl_q; // Preserve old vl
+        else
+            csr_vl_q <= vl; // Set new vl
+
+        csr_done <= 1'b1;
+        
     end 
     else begin 
         csr_vtype_q <= csr_vtype_q;
@@ -135,59 +195,7 @@ always_comb begin
     endcase
 end
 
-// vlmax = VLEN/SEW decoding
-always_comb begin
-    case (vlmul_e'(csr_vtype_q.vlmul))
-    LMUL_1: begin
-        case(vew_e'(csr_vtype_q.vsew))
-        EW8:    vlmax = 64;
-        EW16:   vlmax = 32;
-        EW32:   vlmax = 16;
-        EW64:   vlmax = 8;
-        EWRSVD: vlmax = 16;
-        default: vlmax = 16;
-    endcase
-    end
-    LMUL_2: begin
-        case(vew_e'(csr_vtype_q.vsew))
-        EW8:    vlmax = 128;
-        EW16:   vlmax = 64;
-        EW32:   vlmax = 32;
-        EW64:   vlmax = 16;
-        EWRSVD: vlmax = 32;
-        default: vlmax = 32;
-    endcase
-    end
-    LMUL_4: begin
-        case(vew_e'(csr_vtype_q.vsew))
-        EW8:    vlmax = 256;
-        EW16:   vlmax = 128;
-        EW32:   vlmax = 64;
-        EW64:   vlmax = 32;
-        EWRSVD: vlmax = 64;
-        default: vlmax = 64;
-    endcase
-    end
-    LMUL_8: begin
-        case(vew_e'(csr_vtype_q.vsew))
-        EW8:    vlmax = 512;
-        EW16:   vlmax = 256;
-        EW32:   vlmax = 128;
-        EW64:   vlmax = 64;
-        EWRSVD: vlmax = 128;
-        default: vlmax = 128;
-    endcase
-    end
-    LMUL_RSVD: begin
-        vlmax = 16;
-    end
-    default: begin
-        vlmax =16;
-    end
-    endcase
-end
-
-
+// EEW EMUL and EVLMAX DECODING 
 always_comb begin : eew_emul_evlmax_decoding
     // eew decoding
     case (width)
