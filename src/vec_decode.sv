@@ -23,14 +23,12 @@ module vec_decode(
 
     // vec_decode -> csr 
     output  logic [`XLEN-1:0]       scalar2,                // vector type or rs2
-    output  logic [`XLEN-1:0]       scalar1,                // vector length or rs1 (base address)
+    output  logic [`XLEN-1:0]       scalar1,               // rs1_data or uimm
 
     // vec_control_signals -> vec_decode
     input   logic                   vl_sel,                 // selection for rs1_data or uimm
     input   logic                   vtype_sel,              // selection for rs2_data or zimm
-    input   logic                   lumop_sel,              // selection lumop
-    input   logic                   rs1rd_de,               // selection for VLMAX or comparator
-    input   logic                   rs1_sel                 // selection for rs1_data
+    input   logic                   lumop_sel               // selection lumop
 );
 
 v_opcode_e      vopcode;
@@ -49,9 +47,9 @@ logic [1:0]     mop;        // selection between strided and gather
 
 // vector configuration 
 logic [`XLEN-1:0]     rs1_o, rs2_o;
-logic [`XLEN-1:0]     vlen_mux, vtype_mux, vlen_compare;
-logic [10:0]         zimm;          // zero-extended immediate
-logic [4:0]          uimm;          // unsigned immediate
+logic [`XLEN-1:0]     vtype_mux;
+logic [10:0]          zimm;          // zero-extended immediate
+logic [4:0]           uimm;          // unsigned immediate
 
 assign vopcode  = v_opcode_e'(vec_inst[6:0]);
 assign vd_addr  = vec_inst[11:7];
@@ -165,6 +163,7 @@ always_comb begin : vec_decode
         V_LOAD: begin
             is_vec          = 1;
             vec_write_addr  = vd_addr;
+            rs1_o           = rs1_data;
             vec_imm         = '0;
             vec_mask        = vm;
             mew             = vec_inst[28];
@@ -184,6 +183,7 @@ always_comb begin : vec_decode
         V_STORE: begin
             is_vec          = 1'b1;
             vec_write_addr  = vd_addr;
+            rs1_o           = rs1_data;
             vec_imm         = '0;
             vec_mask        = vm;
             mew             = vec_inst[28];
@@ -216,28 +216,17 @@ always_comb begin : vec_decode
     endcase
 end
     
-/* Mux for vector configuration scalar2 and scalar1 selections*/
+/* Mux for vector configuration scalar2 selections*/
 
-// mux for selection of uimm or rs1 for scalar1
-assign vlen_mux = (vl_sel) ? $unsigned(uimm) : rs1_o;
-
-// mux for selection of zimm or rs2 for scalar2
-assign vtype_mux = (vtype_sel) ? {'0 ,zimm} : rs2_o;
-
-// mux for selection of lumop or vtype
-assign scalar2   = (lumop_sel) ? $unsigned(lumop) : vtype_mux;
-
-// comparator for selecting vlen_mux or VLMAX for CSR vlen
-assign vlen_compare = ((vlen_mux > VLMAX) == 1) ? VLMAX : vlen_mux; // rs1 != x0
-
-// AVL (application vector lenght) encoding
-// comparing rs1 and rd addresses with x0
 always_comb begin
-    case (rs1rd_de)
-        1'b0: scalar1 = VLMAX;         // rs1 == x0
-        1'b1: scalar1 = (rs1_sel)? vlen_mux : vlen_compare;      
-        default: scalar1 = VLMAX;
-    endcase
+    // mux for selection of uimm or rs1 for scalar1
+    scalar1 = (vl_sel) ? $unsigned(uimm) : rs1_o;
+
+    // mux for selection of zimm or rs2 for scalar2
+    vtype_mux = (vtype_sel) ? {'0 ,zimm} : rs2_o;
+
+    // mux for selection of lumop or vtype
+    scalar2   = (lumop_sel) ? $unsigned(lumop) : vtype_mux;
 end
 
 endmodule
