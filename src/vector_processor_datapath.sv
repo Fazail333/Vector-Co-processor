@@ -44,11 +44,10 @@ module vector_processor_datapth (
     input   logic                           vl_sel,             // selection for rs1_data or uimm
     input   logic                           vtype_sel,          // selection for rs2_data or zimm
     input   logic                           lumop_sel,          // selection lumop
-    input   logic                           rs1rd_de,           // selection for VLMAX or comparator
-    input   logic                           rs1_sel,            // selection for rs1_data
-
+    
     // vec_control_signals -> vec_csr_regs
     input   logic                           csrwr_en,
+    input   logic                           rs1rd_de,           // selection for VLMAX or comparator
     
     // vec_control_signals -> vec_register_file
     input   logic                           vec_reg_wr_en,     // The enable signal to write in the vector register
@@ -170,14 +169,13 @@ assign inst_done = data_written || csr_done;
         // vec_control_signals -> vec_decode
         .vl_sel             (vl_sel         ),             
         .vtype_sel          (vtype_sel      ),             
-        .lumop_sel          (lumop_sel      ),             
-        .rs1rd_de           (rs1rd_de       ),             
-        .rs1_sel            (rs1_sel        )              
+        .lumop_sel          (lumop_sel      )             
     );
 
 
              /////////////////////
-            //   CSR REGFILE   //
+            //   CSR REGFILE   //input   logic                           rs1rd_de,           // selection for VLMAX or comparator
+    
            /////////////////////
 
 
@@ -186,11 +184,14 @@ assign inst_done = data_written || csr_done;
         .n_rst                  (reset          ),
 
         // scalar_processor -> csr_regfile
-        .inst                   (instruction   ),
+        .inst                   (instruction    ),
 
         // csr_regfile -> scalar_processor
         .csr_out                (csr_out        ),
 
+        // vec_controller -> csr_regfile
+        .rs1rd_de               (rs1rd_de       ),
+        
         // vec_decode -> vec_csr_regs
         .scalar2                (scalar2        ), 
         .scalar1                (scalar1        ),
