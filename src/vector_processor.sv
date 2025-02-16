@@ -50,8 +50,6 @@ logic               vl_sel;             // selection for rs1_data or uimm
 logic               vtype_sel;          // selection for rs2_data or zimm
 logic               lumop_sel;          // selection lumop
 logic               rs1rd_de;           // selection for VLMAX or comparator
-logic               rs1_sel;            // selection for rs1_data
-
 
 // vec_control_signals -> vec_csr
 logic                csrwr_en;
@@ -124,8 +122,7 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
         .vtype_sel          (vtype_sel      ),
         .lumop_sel          (lumop_sel      ),
         .rs1rd_de           (rs1rd_de       ),
-        .rs1_sel            (rs1_sel        ),
-
+        
         // vec_control_signals -> vec_csr_regs
         .csrwr_en           (csrwr_en       ),
 
@@ -158,14 +155,13 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
         .vl_sel             (vl_sel         ),
         .vtype_sel          (vtype_sel      ),
         .lumop_sel          (lumop_sel      ),
-        .rs1rd_de           (rs1rd_de       ),
-        .rs1_sel            (rs1_sel        ),
-
+        
         // vec_control_signals -> vec_csr_regs
         .csrwr_en           (csrwr_en        ),
         .sew_eew_sel        (sew_eew_sel     ),
         .vlmax_evlmax_sel   (vlmax_evlmax_sel),
         .emul_vlmul_sel     (emul_vlmul_sel  ),
+        .rs1rd_de           (rs1rd_de       ),
 
         // vec_control_signals -> vec_register_file
         .vec_reg_wr_en      (vec_reg_wr_en  ),
