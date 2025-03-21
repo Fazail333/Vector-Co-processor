@@ -93,8 +93,8 @@ logic   [`XLEN-1:0] scalar1;
 logic   [`XLEN-1:0] scalar2;
 
 // Output from vector processor lsu --> lsu mux
-logic                           is_loaded;              // It tells that data is loaded from the memory and ready to be written in register file
-
+logic               is_loaded;              // It tells that data is loaded from the memory and ready to be written in register file
+logic               is_stored;              // It tells that data is stored to the memory               
 // The extended scaler 1 and scaler 2 upto MAX_VLEN
 logic   [`MAX_VLEN-1:0] scaler1_extended ,scaler2_extended; 
 
@@ -135,7 +135,7 @@ logic   [3:0]                  vlmul_emul_mux_out;      // selection between lmu
 logic   [9:0]                  vlmax_evlmax_mux_out;    // selection between vlmax and e_vlmax
 
 
-assign inst_done = data_written || csr_done;
+assign inst_done = data_written || csr_done || is_stored;
 
              //////////////////////
             //      DECODE      //
@@ -174,8 +174,7 @@ assign inst_done = data_written || csr_done;
 
 
              /////////////////////
-            //   CSR REGFILE   //input   logic                           rs1rd_de,           // selection for VLMAX or comparator
-    
+            //   CSR REGFILE   //
            /////////////////////
 
 
@@ -357,6 +356,9 @@ assign inst_done = data_written || csr_done;
         .vs2_data       (data_mux2_out              ),       
         .vs3_data       (dst_vec_data               ),      
         
+        // datapath -->  vec_lsu        
+        .inst_done      (inst_done                  ),
+
         // vec_lsu -> main_memory
         .lsu2mem_addr   (lsu2mem_addr               ),
         .lsu2mem_data   (lsu2mem_data               ),   
@@ -369,16 +371,17 @@ assign inst_done = data_written || csr_done;
 
         // vec_lsu  -> vec_register_file
         .vd_data        (vec_wr_data                ), 
-        .is_loaded      (is_loaded                  )  
+        .is_loaded      (is_loaded                  ),
+        .is_stored      (is_stored                  )  
     );
 
 
     data_mux_2x1 #(.width(1'b1)) VLSU_DATA_MUX(
         
-        .operand1       (1'b0             ),
-        .operand2       (vec_reg_wr_en    ),
-        .sel            (is_loaded        ),
-        .mux_out        (vec_wr_en        )     
+        .operand1       (1'b0            ),
+        .operand2       (vec_reg_wr_en   ),
+        .sel            (is_loaded       ),
+        .mux_out        (vec_wr_en       )     
     
     );
     
