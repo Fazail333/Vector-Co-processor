@@ -481,7 +481,7 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
             // If the masking is enabled 
             if (!instruction[25])begin
                 $display("STORE with masking");
-                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded))begin
+                while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_stored))begin
                     @(posedge clk);
                     if (st_req)begin
                                 // Process each byte conditionally based on the write_strobe signal
@@ -508,7 +508,7 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
             else begin
                 $display("STORE with not masking");
                    
-               while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_loaded)) begin
+               while (!(VECTOR_PROCESSOR.DATAPATH.VLSU.is_stored)) begin
                     // Monitor the load request (st_req) at every positive edge of the clock
                     @(posedge clk);
 
