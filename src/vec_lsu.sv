@@ -41,6 +41,9 @@ module vec_lsu #(
     input   logic                   mew,            // Not used in this context
     input   logic   [2:0]           width,          // Memory access width
 
+    // datapath ---> vec_lsu
+    input   logic                   inst_done,      // tells  load inst or the store inst completed
+
     // vec_lsu -> Main Memory
     output  logic   [`XLEN-1:0]     lsu2mem_addr,   // Memory address
     output  logic   [`DATA_BUS-1:0] lsu2mem_data,   // Stored Data
@@ -53,9 +56,11 @@ module vec_lsu #(
 
     // vec_lsu -> Vector Register File
     output  logic   [`MAX_VLEN-1:0] vd_data,        // Destination vector data
-    output  logic                   is_loaded       // Load complete signal
+    output  logic                   is_loaded,      // Load data complete signal
+    output  logic                   is_stored       // Store data complete signal
 
 );
+    logic                           new_inst;       // tells the initiation of new instruction
 
  // ADDRESS GENERATION  Signals
     logic [`XLEN-1:0]               stride_mux;                  
@@ -88,7 +93,6 @@ module vec_lsu #(
     logic                           data_en;         // Data write enable
     logic                           st_data_en;
     logic                           data_en_next;
-    
 
 /******************************************* ADDRESS GENERATION ******************************************************/
 
@@ -242,17 +246,17 @@ module vec_lsu #(
   // STRIDE VALUE CALCULATION
     always_comb  begin
          if (unit_const_str_en) 
-            stride_value <= stride_mux;
+            stride_value = stride_mux;
         else if (index_str_en) begin
             if (index_unordered)begin
-                stride_value <= random_str_array[count_el];
+                stride_value = random_str_array[count_el];
             end
             else begin
-                stride_value <= selected_stride;    
+                stride_value = selected_stride;    
             end
         end
         else 
-            stride_value <= stride_value;    
+            stride_value = stride_value;    
     end
 
     // LSU2MEM ADDRESS GENERATION
@@ -280,9 +284,8 @@ module vec_lsu #(
     always_ff @(posedge clk or negedge n_rst) begin
         if (!n_rst)
             count_el <= 0;
-        else if (is_loaded)begin
+        else if (is_loaded_reg || is_stored)begin
             count_el <= 0;
-
         end
         else if (count_en) begin
             if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))
@@ -290,25 +293,60 @@ module vec_lsu #(
             else
                 count_el <= count_el + 1;
         end
+        else begin
+            count_el <= count_el;
+        end
     end
 
+    always_ff @( posedge clk or negedge n_rst ) begin 
+        if (!n_rst)begin
+            new_inst <= 1;
+        end
+        else if ((is_loaded_reg || is_stored) && !inst_done)begin
+            new_inst <= 0;
+        end
+        else if (inst_done)begin
+            new_inst <= 1;
+        end
+        
+    end
 
 
     // Register is_loaded and data_en to introduce a one-cycle delay
 
     always_ff @(posedge clk or negedge n_rst) begin
         if (!n_rst) begin
-            is_loaded_reg <= 1'b0;
-            data_en <= 0;
+            data_en       <= 0;
+            is_loaded     <= 0;
         end
         else begin
-            is_loaded_reg <= (count_el == vlmax);
-            data_en <= data_en_next;
+            data_en       <= data_en_next;
+            is_loaded     <= is_loaded_reg;
         end    
     end
 
-    assign is_loaded = is_loaded_reg;
 
+    always_comb begin
+        if (ld_inst)begin
+           if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))
+                is_loaded_reg = (count_el == vlmax + add_el);
+            else 
+                is_loaded_reg = (count_el == vlmax + 1);
+        end
+        else if (st_inst)begin
+            if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))
+                is_stored = (count_el == vlmax + add_el);
+            else 
+                is_stored = (count_el == vlmax + 1);
+        end
+        else begin
+            is_loaded_reg = 1'b0;
+            is_stored     = 1'b0;
+        end 
+    end
+
+
+    
 
 /****************************************** DATA MANGEMENT **********************************************************/
 
@@ -496,7 +534,7 @@ module vec_lsu #(
             IDLE: begin
                 
                 start_unit_cont = 1;
-                if (ld_inst) begin
+                if (ld_inst && new_inst) begin
                     if (index_str)begin
 
                         n_state             = LOAD_INDEX;
@@ -512,7 +550,7 @@ module vec_lsu #(
                     
                     end
                 end
-                else if (st_inst) begin
+                else if (st_inst && new_inst) begin
                     if (index_str)begin
 
                         n_state             = STORE_INDEX;
@@ -529,7 +567,6 @@ module vec_lsu #(
                         st_data_en          = 1;
                     end
                 end
-
             end
             LOAD_UNIT_CONST: begin
 
@@ -537,9 +574,9 @@ module vec_lsu #(
                 count_en            = 1;
                 unit_const_str_en   = 0;
                 start_unit_cont     = 0;
-                ld_req              = !is_loaded;  // Assert until all elements are loaded
+                ld_req              = !is_loaded_reg;  // Assert until all elements are loaded
                 
-                if (is_loaded) begin
+                if (is_loaded_reg) begin
 
                     n_state         = IDLE;
                     ld_req          = 0;
@@ -554,9 +591,9 @@ module vec_lsu #(
                 count_en            = 1;
                 index_str_en        = 1;
                 start_unit_cont     = 0;
-                ld_req              = !is_loaded;
+                ld_req              = !is_loaded_reg;
 
-                if (is_loaded) begin
+                if (is_loaded_reg) begin
 
                     n_state         = IDLE;
                     ld_req          = 0;
@@ -572,9 +609,9 @@ module vec_lsu #(
                 st_data_en          = 1;
                 unit_const_str_en   = 0;
                 start_unit_cont     = 0;
-                st_req              = !is_loaded;  // Assert until all elements are loaded
+                st_req              = !is_stored;  // Assert until all elements are stored
                 
-                if (is_loaded) begin
+                if (is_stored) begin
 
                     n_state         = IDLE;
                     st_req          = 0;
@@ -588,9 +625,9 @@ module vec_lsu #(
                 st_data_en          = 1;
                 index_str_en        = 1;
                 start_unit_cont     = 0;
-                st_req              = !is_loaded;
+                st_req              = !is_stored;
 
-                if (is_loaded) begin
+                if (is_stored) begin
 
                     n_state         = IDLE;
                     st_req          = 0;
