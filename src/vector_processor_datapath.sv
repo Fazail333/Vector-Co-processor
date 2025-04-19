@@ -5,7 +5,7 @@
 `include "../define/vector_processor_defs.svh"
 `include "../define/vec_regfile_defs.svh"
 
-module vector_processor_datapth (
+module vector_processor_datapath (
     
     input   logic   clk,reset,
     

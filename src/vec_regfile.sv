@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 //Author        : Zawaher Bin Asim , UET Lahore
 //Description   : This the   register file of the vector processor
 // Date         : 20 Sep, 2024.

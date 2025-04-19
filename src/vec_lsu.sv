@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 //Author        : Zawaher Bin Asim , UET Lahore       <zawaherbinasim.333@gmail.com>
 //                Fazail Ali Butt , UET Lahore        <fazailbutt25@gmail.com>
 

@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 
 `include "../define/vector_processor_defs.svh"
 

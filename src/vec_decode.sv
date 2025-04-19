@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 `include "../define/vec_de_csr_defs.svh"
 
 module vec_decode(

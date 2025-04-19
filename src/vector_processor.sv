@@ -81,7 +81,7 @@ logic   [`XLEN-1:0]         inst_reg_instruction;            // The instruction 
 logic   [`XLEN-1:0]         inst_reg_rs1_data;               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
 logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
-    vector_processor_datapth DATAPATH(
+    vector_processor_datapath DATAPATH(
         
         .clk                (clk            ),
         .reset              (reset          ),

@@ -546,7 +546,9 @@ assign vfunc3   = v_func3_e'(VECTOR_PROCESSOR.inst_reg_instruction[14:12]);
     task instruction_fetch(input logic [`XLEN-1:0]address );
     
         begin
-            $readmemh("/home/zawaher-bin-asim/Vector-Co-processor/test/instruction_mem.txt", inst_mem);
+            string path;
+            path = {`ROOT_PATH, "/test/instruction_mem.txt"};
+            $readmemh(path, inst_mem);
             $display("Next Instruction");
             instruction = inst_mem[address];        // Fetch instruction from memory
             rs1_addr = instruction[19:15];          // Decode rs1 address
