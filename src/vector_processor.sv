@@ -20,6 +20,7 @@ module vector_processor(
 
     // Outputs from vector processor --> scaler processor
     output  logic                       is_vec,                 // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
+    output  logic                       error,                  // error has occure due to invalid configurations
 
     // Output from vector processor lsu --> memory
     output  logic   [`XLEN-1:0]         lsu2mem_addr,           // Gives the memory address to load or store data
@@ -93,6 +94,7 @@ logic   [`XLEN-1:0]         inst_reg_rs2_data;               // The scaler input
 
         // Outputs from vector rocessor --> scaler processor
         .is_vec             (is_vec         ),
+        .error              (error          ),
         
         // Output from vector processor lsu --> memory
         .lsu2mem_addr       (lsu2mem_addr   ),           
