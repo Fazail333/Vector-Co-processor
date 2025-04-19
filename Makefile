@@ -14,6 +14,8 @@ DEFINES_VIV:= define/vec_de_csr_defs.svh 	\
 	define/vec_regfile_defs.svh			\
 	define/vector_processor_defs.svh
 
+WORK_DIR = work
+
 COMP_OPTS_SV := --incr --relax
 
 TB_TOP := vector_processor_tb
@@ -98,8 +100,30 @@ else
 	touch $@
 endif
 
+#----------------------#
+#----- MODEL SIM ------#
+#----------------------#
+
+vsim: vsim_compile simulate
+
+# Create a working library and compile source files
+vsim_compile: $(wildcard *.sv)
+	@echo "Creating work library..."
+	vlib $(WORK_DIR)
+	@echo "Compiling source files..."
+	vlog -work $(WORK_DIR) +define+ROOT_PATH=\"$(PWD)\" $(SRC_SV)
+
+# Run the simulation and generate WLF file
+simulate: vsim_compile
+	@echo "Running simulation..."
+	vsim -L $(WORK_DIR) $(MODULE) -do "add wave -radix Unsigned sim:/$(MODULE)/VECTOR_PROCESSOR/*; run -all"
+
 .PHONY : clean
 clean :
+	@echo "Cleaning up..."
+	rm -rf ./test/__pycache__ ./test/sim_build
+	rm -rf ./test/*.vcd ./test/*.xml ./test/*.log
+	rm -rf $(WORK_DIR) transcript vsim.wlf
 	rm -rf *.jou *.log *.pb *.wdb xsim.dir *.str
 	rm -rf .*.timestamp *.tcl *.vcd .*.verilate
 	rm -rf obj_dir .Xil

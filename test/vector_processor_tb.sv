@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 // Author       : Zawaher Bin Asim , UET Lahore <zawaherbinasim.333@gmail.com>
 // Date         : 1 Oct 2024
 // Description  : This file contains the testbench of the vector_processor
