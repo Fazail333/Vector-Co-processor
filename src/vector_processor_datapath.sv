@@ -26,14 +26,14 @@ module vector_processor_datapth (
 
     // Outputs from vector rocessor --> scaler processor
     output  logic                           is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
-    
+    output  logic                           error,              // error has occure due to invalid configurations
+
     
     // csr_regfile -> scalar_processor
     output  logic   [`XLEN-1:0]             csr_out,            
 
     // datapth  --> scaler_processor 
     output  logic                           inst_done,          // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
-
 
     // Inputs from the controller --> datapath
     
@@ -94,7 +94,9 @@ logic   [`XLEN-1:0] scalar2;
 
 // Output from vector processor lsu --> lsu mux
 logic               is_loaded;              // It tells that data is loaded from the memory and ready to be written in register file
-logic               is_stored;              // It tells that data is stored to the memory               
+logic               is_stored;              // It tells that data is stored to the memory
+logic               error_flag;             // It tells that wrong configurations has occure   
+
 // The extended scaler 1 and scaler 2 upto MAX_VLEN
 logic   [`MAX_VLEN-1:0] scaler1_extended ,scaler2_extended; 
 
@@ -135,7 +137,8 @@ logic   [3:0]                  vlmul_emul_mux_out;      // selection between lmu
 logic   [9:0]                  vlmax_evlmax_mux_out;    // selection between vlmax and e_vlmax
 
 
-assign inst_done = data_written || csr_done || is_stored;
+assign inst_done = data_written || csr_done || is_stored || error ;
+assign error     = error_flag || wrong_addr;
 
              //////////////////////
             //      DECODE      //
@@ -372,16 +375,17 @@ assign inst_done = data_written || csr_done || is_stored;
         // vec_lsu  -> vec_register_file
         .vd_data        (vec_wr_data                ), 
         .is_loaded      (is_loaded                  ),
-        .is_stored      (is_stored                  )  
+        .is_stored      (is_stored                  ),
+        .error_flag     (error_flag                 )  
     );
 
 
     data_mux_2x1 #(.width(1'b1)) VLSU_DATA_MUX(
         
-        .operand1       (1'b0            ),
-        .operand2       (vec_reg_wr_en   ),
-        .sel            (is_loaded       ),
-        .mux_out        (vec_wr_en       )     
+        .operand1       (1'b0                     ),
+        .operand2       (vec_reg_wr_en            ),
+        .sel            (is_loaded && !error_flag ),
+        .mux_out        (vec_wr_en                )     
     
     );
     

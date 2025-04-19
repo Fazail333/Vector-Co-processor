@@ -57,7 +57,8 @@ module vec_lsu #(
     // vec_lsu -> Vector Register File
     output  logic   [`MAX_VLEN-1:0] vd_data,        // Destination vector data
     output  logic                   is_loaded,      // Load data complete signal
-    output  logic                   is_stored       // Store data complete signal
+    output  logic                   is_stored,      // Store data complete signal
+    output  logic                   error_flag      // Gives on invalid configuration
 
 );
     logic                           new_inst;       // tells the initiation of new instruction
@@ -174,11 +175,14 @@ module vec_lsu #(
                     3'b101: random_stride = vs2_data[(random_index * 16) +: 16];
                     3'b110: random_stride = vs2_data[(random_index * 32) +: 32];
                     3'b111: begin 
-                        if (index_str) 
-                            $fatal("SEW = 64 is not supported for XLEN = 32");
+                        if (index_str)begin 
+                            $error("SEW = 64 is not supported for XLEN = 32 ");
+                        end
                         random_stride = 0;
                     end
-                    default: random_stride = 0;
+                    default:begin
+                        random_stride = 0;
+                    end
                 endcase
             end
         end
@@ -207,6 +211,17 @@ module vec_lsu #(
         end
     end
 
+    // CONFIGURATION CHECKING BLOCK
+    always_comb begin 
+        error_flag = 0;
+
+        if (index_str &&  (width == 3'b111))begin
+            error_flag = 1;
+        end
+        else begin
+            error_flag = 0;
+        end
+    end
 
     // Index Orderded Stride Computation
     always_comb begin
@@ -224,7 +239,7 @@ module vec_lsu #(
                 add_el = `DATA_BUS/32;
             end
             3'b111: begin 
-                if (index_str)begin
+                if (index_str)begin 
                     $error("SEW = 64 is not supported for XLEN = 32 ");
                 end
                 else begin
@@ -284,7 +299,7 @@ module vec_lsu #(
     always_ff @(posedge clk or negedge n_rst) begin
         if (!n_rst)
             count_el <= 0;
-        else if (is_loaded_reg || is_stored)begin
+        else if (is_loaded_reg || is_stored || error_flag)begin
             count_el <= 0;
         end
         else if (count_en) begin
@@ -308,7 +323,6 @@ module vec_lsu #(
         else if (inst_done)begin
             new_inst <= 1;
         end
-        
     end
 
 
@@ -530,113 +544,122 @@ module vec_lsu #(
         unit_const_str_en   = 0;
         st_data_en          = 0;
 
-        case (c_state)
-            IDLE: begin
-                
-                start_unit_cont = 1;
-                if (ld_inst && new_inst) begin
-                    if (index_str)begin
+        if (error_flag) begin
+            n_state = IDLE;
+            count_en = 0;
+            data_en_next = 0;
+            st_data_en = 0;
+            ld_req = 0;
+            st_req = 0;
+        end else begin
+            case (c_state)
+                IDLE: begin
+                    
+                    start_unit_cont = 1;
+                    if (ld_inst && new_inst) begin
+                        if (index_str)begin
 
-                        n_state             = LOAD_INDEX;
-                        index_str_en        = 1'b1;
-                        count_en            = 1; 
+                            n_state             = LOAD_INDEX;
+                            index_str_en        = 1'b1;
+                            count_en            = 1; 
+                        
+                        end
+                        else begin
+
+                            n_state             = LOAD_UNIT_CONST;
+                            unit_const_str_en   = 1;
+                            count_en            = 1;
+                        
+                        end
+                    end
+                    else if (st_inst && new_inst) begin
+                        if (index_str)begin
+
+                            n_state             = STORE_INDEX;
+                            index_str_en        = 1'b1;
+                            count_en            = 1;
+                            st_data_en          = 1; 
+                        
+                        end
+                        else begin
+
+                            n_state             = STORE_UNIT_CONST;
+                            unit_const_str_en   = 1;
+                            count_en            = 1;
+                            st_data_en          = 1;
+                        end
+                    end
+                end
+                LOAD_UNIT_CONST: begin
+
+                    data_en_next        = 1;
+                    count_en            = 1;
+                    unit_const_str_en   = 0;
+                    start_unit_cont     = 0;
+                    ld_req              = !is_loaded_reg;  // Assert until all elements are loaded
+                    
+                    if (is_loaded_reg) begin
+
+                        n_state         = IDLE;
+                        ld_req          = 0;
+                        data_en_next    = 0;
+                        count_en        = 0;
                     
                     end
-                    else begin
+                end
+                LOAD_INDEX : begin
 
-                        n_state             = LOAD_UNIT_CONST;
-                        unit_const_str_en   = 1;
-                        count_en            = 1;
+                    data_en_next        = 1;
+                    count_en            = 1;
+                    index_str_en        = 1;
+                    start_unit_cont     = 0;
+                    ld_req              = !is_loaded_reg;
+
+                    if (is_loaded_reg) begin
+
+                        n_state         = IDLE;
+                        ld_req          = 0;
+                        index_str_en    = 0;
+                        data_en_next    = 0;
+                        count_en        = 0;
+                    end
+                end
+
+                STORE_UNIT_CONST: begin
+
+                    count_en            = 1;
+                    st_data_en          = 1;
+                    unit_const_str_en   = 0;
+                    start_unit_cont     = 0;
+                    st_req              = !is_stored;  // Assert until all elements are stored
                     
+                    if (is_stored) begin
+
+                        n_state         = IDLE;
+                        st_req          = 0;
+                        st_data_en      = 0;
+                        count_en        = 0;
                     end
                 end
-                else if (st_inst && new_inst) begin
-                    if (index_str)begin
+                STORE_INDEX : begin
 
-                        n_state             = STORE_INDEX;
-                        index_str_en        = 1'b1;
-                        count_en            = 1;
-                        st_data_en          = 1; 
-                    
+                    count_en            = 1;
+                    st_data_en          = 1;
+                    index_str_en        = 1;
+                    start_unit_cont     = 0;
+                    st_req              = !is_stored;
+
+                    if (is_stored) begin
+
+                        n_state         = IDLE;
+                        st_req          = 0;
+                        index_str_en    = 0;
+                        st_data_en      = 0;
+                        count_en        = 0;
                     end
-                    else begin
-
-                        n_state             = STORE_UNIT_CONST;
-                        unit_const_str_en   = 1;
-                        count_en            = 1;
-                        st_data_en          = 1;
-                    end
                 end
-            end
-            LOAD_UNIT_CONST: begin
-
-                data_en_next        = 1;
-                count_en            = 1;
-                unit_const_str_en   = 0;
-                start_unit_cont     = 0;
-                ld_req              = !is_loaded_reg;  // Assert until all elements are loaded
-                
-                if (is_loaded_reg) begin
-
-                    n_state         = IDLE;
-                    ld_req          = 0;
-                    data_en_next    = 0;
-                    count_en        = 0;
-                
-                end
-            end
-            LOAD_INDEX : begin
-
-                data_en_next        = 1;
-                count_en            = 1;
-                index_str_en        = 1;
-                start_unit_cont     = 0;
-                ld_req              = !is_loaded_reg;
-
-                if (is_loaded_reg) begin
-
-                    n_state         = IDLE;
-                    ld_req          = 0;
-                    index_str_en    = 0;
-                    data_en_next    = 0;
-                    count_en        = 0;
-                end
-            end
-
-            STORE_UNIT_CONST: begin
-
-                count_en            = 1;
-                st_data_en          = 1;
-                unit_const_str_en   = 0;
-                start_unit_cont     = 0;
-                st_req              = !is_stored;  // Assert until all elements are stored
-                
-                if (is_stored) begin
-
-                    n_state         = IDLE;
-                    st_req          = 0;
-                    st_data_en      = 0;
-                    count_en        = 0;
-                end
-            end
-            STORE_INDEX : begin
-
-                count_en            = 1;
-                st_data_en          = 1;
-                index_str_en        = 1;
-                start_unit_cont     = 0;
-                st_req              = !is_stored;
-
-                if (is_stored) begin
-
-                    n_state         = IDLE;
-                    st_req          = 0;
-                    index_str_en    = 0;
-                    st_data_en      = 0;
-                    count_en        = 0;
-                end
-            end
-        endcase
+            endcase
+        end
     end
 endmodule
 
