@@ -37,14 +37,12 @@ The datapath consists of the following main components:
 ### 2. **Vector Register File**
 - Stores vector operands.
 - Supports reading and writing of vector elements up to `MAX_VLEN`.
-- Handles masked operations and writes.
 
 ### 3. **CSR (Control and Status Register) File**
 - Stores runtime configuration such as:
   - `VLEN`: Maximum vector length.
   - `LMUL`: Vector length multiplier.
   - `vstart`, `vlen`, `vl`, `vtype`: Other vector-related control parameters.
-- Controls masking and tail settings.
 - Interfaces with both the decode unit and VLSU.
 
 ### 4. **VLSU (Vector Load Store Unit)**
@@ -60,7 +58,6 @@ The datapath consists of the following main components:
 ## Features Highlighted in Datapath
 
 - **Flexible memory access patterns** via the VLSU.
-- **Masked operations** with runtime control from CSR.
 - **Dynamic configuration** through CSR programming for varying vector lengths.
 - **Efficient operand muxing and data routing** among units.
 
@@ -84,7 +81,7 @@ The waveform below shows a successful sequence of vector load/store operations u
 
 Our verification infrastructure validates DUT behavior through real-time comparisons between expected and actual results. The Monitor module captures internal signal transitions and flags inconsistencies.
 
-![Verification](/docs/vector_processor_docs/verification_env)
+![Verification](/docs/vector_processor_docs/verification_env.png)
 
 > Features:
 - Built-in **golden model monitor**
@@ -108,7 +105,7 @@ Representative results include:
 
 Built-in error detection helps debug:
 - Misaligned base addresses
-- Invalid LMUL/VLEN or mask configurations
+- Invalid LMUL/VLEN
 - AXI protocol errors
 
 ![Config Error](/docs/vector_processor_docs/error.png)
