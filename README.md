@@ -100,7 +100,6 @@ Representative results include:
 - Intermediate registers
 - Final memory values compared with the monitor
 
-*Images:*
 ![Unit Stride](/docs/vector_processor_docs/unit.png)
 ![Constant Stride](/docs/vector_processor_docs/const.png)
 ![Indexed Stride](/docs/vector_processor_docs/index.png)
