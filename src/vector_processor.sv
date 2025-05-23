@@ -98,8 +98,8 @@ logic                               inst_reg_en;
 
 //vector processor lsu --> AXI 4 MASTER
 logic   [`XLEN-1:0]                 lsu2mem_addr;           // Gives the memory address to load or store data
-logic                               ld_req;                 // load request signal to the memory
-logic                               st_req;                 // store request signal to the memory
+logic                               ld_req;                 // load request signal to the AXI 4 MASTER
+logic                               st_req;                 // store request signal to the AXI 4 MASTER
 logic   [`DATA_BUS*BURST_MAX-1:0]   lsu2mem_data;           // Data to be stored
 logic   [WR_STROB*BURST_MAX-1:0]    wr_strobe;              // THE bytes of the DATA_BUS that contains the actual data 
 logic   [7:0]                       burst_len;
@@ -139,6 +139,8 @@ logic   [`XLEN-1:0]                 inst_reg_rs2_data;               // The scal
         // Output from vector processor lsu --> AXI 4 MASTER
         .lsu2mem_addr       (lsu2mem_addr        ),
         .lsu2mem_data       (lsu2mem_data        ),
+        .ld_req             (ld_req              ),
+        .st_req             (st_req              ),
         .wr_strobe          (wr_strobe           ),
         .burst_len          (burst_len           ),
         .burst_size         (burst_size          ),
