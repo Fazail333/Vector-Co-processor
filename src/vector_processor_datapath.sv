@@ -10,59 +10,66 @@ module vector_processor_datapth (
     input   logic   clk,reset,
     
     // Inputs from the scaler processor  --> vector processor
-    input   logic   [`XLEN-1:0]             instruction,        // The instruction that is to be executed by the vector processor
-    input   logic   [`XLEN-1:0]             rs1_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
-    input   logic   [`XLEN-1:0]             rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
+    input   logic   [`XLEN-1:0]                 instruction,        // The instruction that is to be executed by the vector processor
+    input   logic   [`XLEN-1:0]                 rs1_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs1 address
+    input   logic   [`XLEN-1:0]                 rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
-    //Inputs from main_memory -> vec_lsu
-    input   logic   [`DATA_BUS-1:0]         mem2lsu_data,
+    //Inputs from AXI 4 MASTER-> vec_lsu
+    input   logic   [`DATA_BUS*BURST_MAX-1:0]   mem2lsu_data,
+    input   logic                               burst_valid_data,
+    input   logic                               burst_wr_valid,
+
     
-    // Output from  vec_lsu -> main_memory
-    output  logic   [`XLEN-1:0]             lsu2mem_addr,       // Gives the memory address to load or store data
-    output  logic                           ld_req,             // load request signal to the memory
-    output  logic                           st_req,             // store request signal to the memory
-    output  logic   [`DATA_BUS-1:0]         lsu2mem_data,       // Data to be stored
-    output  logic   [WR_STROB-1:0]          wr_strobe,          // THE bytes of the DATA_BUS that contains the actual data 
+    // Output from  vec_lsu -> AXI4 MASTER
+    output  logic   [`XLEN-1:0]                 lsu2mem_addr,           // Gives the memory address to load or store data
+    output  logic                               ld_req,                 // load request signal to the AXI 4 MASTER
+    output  logic                               st_req,                 // store request signal to the AXI 4 MASTER
+    output  logic   [`DATA_BUS*BURST_MAX-1:0]   lsu2mem_data,           // Data to be stored
+    output  logic   [WR_STROB*BURST_MAX-1:0]    wr_strobe,              // THE bytes of the DATA_BUS that contains the actual data 
+    output  logic   [7:0]                       burst_len,
+    output  logic   [2:0]                       burst_size,
+    output  logic   [1:0]                       burst_type,
+
 
     // Outputs from vector rocessor --> scaler processor
-    output  logic                           is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
-    output  logic                           error,              // error has occure due to invalid configurations
+    output  logic                               is_vec,             // This tells the instruction is a vector instruction or not mean a legal insrtruction or not
+    output  logic                               error,              // error has occure due to invalid configurations
 
     
     // csr_regfile -> scalar_processor
-    output  logic   [`XLEN-1:0]             csr_out,            
+    output  logic   [`XLEN-1:0]                 csr_out,            
 
     // datapth  --> scaler_processor 
-    output  logic                           inst_done,          // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
+    output  logic                               inst_done,          // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
 
     // Inputs from the controller --> datapath
     
-    input  logic                            sew_eew_sel,        // selection for sew_eew mux
-    input  logic                            vlmax_evlmax_sel,   // selection for vlmax_evlmax mux
-    input  logic                            emul_vlmul_sel,     // selection for vlmul_emul mux
+    input  logic                                sew_eew_sel,        // selection for sew_eew mux
+    input  logic                                vlmax_evlmax_sel,   // selection for vlmax_evlmax mux
+    input  logic                                emul_vlmul_sel,     // selection for vlmul_emul mux
     // vec_control_signals -> vec_decode
-    input   logic                           vl_sel,             // selection for rs1_data or uimm
-    input   logic                           vtype_sel,          // selection for rs2_data or zimm
-    input   logic                           lumop_sel,          // selection lumop
+    input   logic                               vl_sel,             // selection for rs1_data or uimm
+    input   logic                               vtype_sel,          // selection for rs2_data or zimm
+    input   logic                               lumop_sel,          // selection lumop
     
     // vec_control_signals -> vec_csr_regs
-    input   logic                           csrwr_en,
-    input   logic                           rs1rd_de,           // selection for VLMAX or comparator
+    input   logic                               csrwr_en,
+    input   logic                               rs1rd_de,           // selection for VLMAX or comparator
     
     // vec_control_signals -> vec_register_file
-    input   logic                           vec_reg_wr_en,     // The enable signal to write in the vector register
-    input   logic                           mask_operation,    // This signal tell this instruction is going to perform mask register update
-    input   logic                           mask_wr_en,        // This the enable signal for updating the mask value
-    input   logic                           offset_vec_en,     // Tells the rdata2 vector is offset vector and will be chosen on base of emul
-    input   logic   [1:0]                   data_mux1_sel,     // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
-    input   logic                           data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
+    input   logic                               vec_reg_wr_en,     // The enable signal to write in the vector register
+    input   logic                               mask_operation,    // This signal tell this instruction is going to perform mask register update
+    input   logic                               mask_wr_en,        // This the enable signal for updating the mask value
+    input   logic                               offset_vec_en,     // Tells the rdata2 vector is offset vector and will be chosen on base of emul
+    input   logic   [1:0]                       data_mux1_sel,     // This the selsction of the mux to select between vec_imm , scaler1 , and vec_data1
+    input   logic                               data_mux2_sel,     // This the selsction of the mux to select between scaler2 , and vec_data2
 
     // vec_control_signals -> vec_lsu
-    input   logic                           stride_sel,         // tells that  it is a unit stride or the indexed
-    input   logic                           ld_inst,            // tells that it is load insruction or store one
-    input   logic                           st_inst,            // Store instruction
-    input   logic                           index_str,          // tells about index stride
-    input   logic                           index_unordered     // tells about index unordered stride
+    input   logic                               stride_sel,         // tells that  it is a unit stride or the indexed
+    input   logic                               ld_inst,            // tells that it is load insruction or store one
+    input   logic                               st_inst,            // Store instruction
+    input   logic                               index_str,          // tells about index stride
+    input   logic                               index_unordered     // tells about index unordered stride
 );
 
 
@@ -333,50 +340,55 @@ assign error     = error_flag || wrong_addr;
 
 
     vec_lsu VLSU(
-        .clk            (clk                        ),
-        .n_rst          (reset                      ),
+        .clk                (clk                        ),
+        .n_rst              (reset                      ),
 
         // scalar-processor -> vec_lsu
-        .rs1_data       (data_mux1_out[`XLEN-1:0]   ),  
-        .rs2_data       (data_mux2_out[`XLEN-1:0]   ),
+        .rs1_data           (data_mux1_out[`XLEN-1:0]   ),  
+        .rs2_data           (data_mux2_out[`XLEN-1:0]   ),
 
         // vector_processor_controller -> vec_lsu
-        .stride_sel     (stride_sel                 ), 
-        .ld_inst        (ld_inst                    ),      
-        .st_inst        (st_inst                    ),
-        .index_str      (index_str                  ),
-        .index_unordered(index_unordered            ),
+        .stride_sel         (stride_sel                 ), 
+        .ld_inst            (ld_inst                    ),      
+        .st_inst            (st_inst                    ),
+        .index_str          (index_str                  ),
+        .index_unordered    (index_unordered            ),
 
         // vec_decode -> vec_lsu
-        .mew            (mew                        ),          
-        .width          (width                      ),
+        .mew                (mew                        ),          
+        .width              (width                      ),
 
         // vec_csr --> vec_lsu
-        .sew            (sew_eew_mux_out            ),
-        .vlmax          (vlmax_evlmax_mux_out       ),      
+        .sew                (sew_eew_mux_out            ),
+        .vlmax              (vlmax_evlmax_mux_out       ),      
 
         // vec_register_file -> vec_lsu
-        .vs2_data       (data_mux2_out              ),       
-        .vs3_data       (dst_vec_data               ),      
+        .vs2_data           (data_mux2_out              ),       
+        .vs3_data           (dst_vec_data               ),      
         
         // datapath -->  vec_lsu        
-        .inst_done      (inst_done                  ),
+        .inst_done          (inst_done                  ),
 
-        // vec_lsu -> main_memory
-        .lsu2mem_addr   (lsu2mem_addr               ),
-        .lsu2mem_data   (lsu2mem_data               ),   
-        .ld_req         (ld_req                     ),
-        .st_req         (st_req                     ),
-        .wr_strobe      (wr_strobe                  ), 
+        // vec_lsu -> AXI 4 MASTER
+        .lsu2mem_addr       (lsu2mem_addr               ),
+        .lsu2mem_data       (lsu2mem_data               ),
+        .ld_req             (ld_req                     ),
+        .st_req             (st_req                     ),
+        .wr_strobe          (wr_strobe                  ),
+        .burst_len          (burst_len                  ),
+        .burst_size         (burst_size                 ),
+        .burst_type         (burst_type                 ),
 
-        // main_memory -> vec_lsu
-        .mem2lsu_data   (mem2lsu_data               ),
+        // AXI 4 MASTER -> vec_lsu
+        .mem2lsu_data       (mem2lsu_data               ),
+        .burst_valid_data   (burst_valid_data           ),
+        .burst_wr_valid     (burst_wr_valid             ),
 
         // vec_lsu  -> vec_register_file
-        .vd_data        (vec_wr_data                ), 
-        .is_loaded      (is_loaded                  ),
-        .is_stored      (is_stored                  ),
-        .error_flag     (error_flag                 )  
+        .vd_data            (vec_wr_data                ), 
+        .is_loaded          (is_loaded                  ),
+        .is_stored          (is_stored                  ),
+        .error_flag         (error_flag                 )  
     );
 
 
