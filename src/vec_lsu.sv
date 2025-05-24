@@ -10,61 +10,67 @@
 
 
 `include "../define/vec_regfile_defs.svh"
+`include "../AXI-4/define/axi_4_defs.svh"
+`include "../AXI-4/define/axi_4_pkg.sv"
 
-module vec_lsu #(
-    
-    parameter WR_STROB = $clog2(`DATA_BUS/8)
-) (
-    input   logic                   clk,
-    input   logic                   n_rst,
+
+module vec_lsu (
+    input   logic                               clk,
+    input   logic                               n_rst,
 
     // Scalar Processor -> vec_lsu
-    input   logic   [`XLEN-1:0]     rs1_data,       // Base address
-    input   logic   [`XLEN-1:0]     rs2_data,       // Stride
+    input   logic   [`XLEN-1:0]                 rs1_data,       // Base address
+    input   logic   [`XLEN-1:0]                 rs2_data,       // Stride
 
     // CSR Register File -> vec_lsu
-    input   logic   [9:0]           vlmax,          // Max number of elements in a vector
-    input   logic   [6:0]           sew,            // Element width
+    input   logic   [9:0]                       vlmax,          // Max number of elements in a vector
+    input   logic   [6:0]                       sew,            // Element width
 
     // Vector Processor Controller -> vec_lsu
-    input   logic                   stride_sel,     // Unit stride select
-    input   logic                   ld_inst,        // Load instruction
-    input   logic                   st_inst,        // Store instruction
-    input   logic                   index_str,      // tells about index stride
-    input   logic                   index_unordered,// tells about index unordered stride
+    input   logic                               stride_sel,     // Unit stride select
+    input   logic                               ld_inst,        // Load instruction
+    input   logic                               st_inst,        // Store instruction
+    input   logic                               index_str,      // tells about index stride
+    input   logic                               index_unordered,// tells about index unordered stride
  
     // vec_register_file -> vec_lsu
-    input   logic   [`MAX_VLEN-1:0] vs2_data,       // vector register that tell the offset 
-    input   logic   [`MAX_VLEN-1:0] vs3_data,       // vector register that tells that data to be stored
+    input   logic   [`MAX_VLEN-1:0]             vs2_data,       // vector register that tell the offset 
+    input   logic   [`MAX_VLEN-1:0]             vs3_data,       // vector register that tells that data to be stored
     
     // vec_decode -> vec_lsu
-    input   logic                   mew,            // Not used in this context
-    input   logic   [2:0]           width,          // Memory access width
+    input   logic                               mew,            // Not used in this context
+    input   logic   [2:0]                       width,          // Memory access width
 
     // datapath ---> vec_lsu
-    input   logic                   inst_done,      // tells  load inst or the store inst completed
+    input   logic                               inst_done,      // tells  load inst or the store inst completed
 
-    // vec_lsu -> Main Memory
-    output  logic   [`XLEN-1:0]     lsu2mem_addr,   // Memory address
-    output  logic   [`DATA_BUS-1:0] lsu2mem_data,   // Stored Data
-    output  logic                   ld_req,         // Load request
-    output  logic                   st_req,         // Store request
-    output  logic   [WR_STROB-1:0]  wr_strobe,      // THE bytes of the DATA_BUS that contains the actual data 
+    // vec_lsu -> AXI 4 MASTER
+    output  logic   [`XLEN-1:0]                 lsu2mem_addr,   // Memory address
+    output  logic   [`DATA_BUS*BURST_MAX-1:0]   lsu2mem_data,   // Stored Data
+    output  logic                               ld_req,         // Load request
+    output  logic                               st_req,         // Store request
+    output  logic   [WR_STROB*BURST_MAX-1:0]    wr_strobe,      // THE bytes of the DATA_BUS that contains the actual data 
+    output  logic   [7:0]                       burst_len,      // TElls the length of the burst
+    output  logic   [2:0]                       burst_size,     // Size of data in each burst
+    output  logic   [1:0]                       burst_type,     // Type of burst
 
-    // Main Memory -> vec_lsu
-    input   logic   [`DATA_BUS-1:0]  mem2lsu_data,   // Memory data
+    // AXI 4 MASTER -> vec_lsu
+    input   logic   [`DATA_BUS*BURST_MAX-1:0]   mem2lsu_data,   // LOADED DATA
+    input   logic                               burst_valid_data,// Tells that loaded data is valid and loaded from memory for whole  burst
+    input   logic                               burst_wr_valid,  // Tells that store burst is completed and data is stored 
 
     // vec_lsu -> Vector Register File
-    output  logic   [`MAX_VLEN-1:0] vd_data,        // Destination vector data
-    output  logic                   is_loaded,      // Load data complete signal
-    output  logic                   is_stored,      // Store data complete signal
-    output  logic                   error_flag      // Gives on invalid configuration
+    output  logic   [`MAX_VLEN-1:0]             vd_data,        // Destination vector data
+    output  logic                               is_loaded,      // Load data complete signal
+    output  logic                               is_stored,      // Store data complete signal
+    output  logic                               error_flag      // Gives on invalid configuration
 
 );
     logic                           new_inst;       // tells the initiation of new instruction
+    logic                           unit_stride;    // Tells that the instruction is unit stride
+    logic                           const_stride;   // TElls that this is constant stride 
 
- // ADDRESS GENERATION  Signals
-    logic [`XLEN-1:0]               stride_mux;                  
+ // ADDRESS GENERATION  Signals                  
     logic [`XLEN-1:0]               stride_value;
     logic [`XLEN-1:0]               unit_const_element_strt;
     logic [`XLEN-1:0]               selected_stride;
@@ -87,14 +93,15 @@ module vec_lsu #(
     logic [$clog2(`VLEN)-1:0]       add_el;          // Incremented count
     logic                           count_en;
     logic                           is_loaded_reg;
+    logic                           load_complete;
+    logic                           store_complete;
 
     
     // DATA MANAGEMENT SIGNALS
     logic [2*`XLEN-1:0]             loaded_data [0:`VLEN-1];
     logic                           data_en;         // Data write enable
     logic                           st_data_en;
-    logic                           data_en_next;
-
+    
 /******************************************* ADDRESS GENERATION ******************************************************/
 
 /******************************************************************************
@@ -140,6 +147,26 @@ module vec_lsu #(
  ******************************************************************************/
 
 
+
+// IN Case of UNIT STRIDE  , We will load the data in one burst operation such that :
+// burst len = (vlmax*sew)/DATABUS_Width
+// burst type = INCR
+// burst_size =  number of bytes in each beat (DATA_BUS/8)=> 512/8 = 64 bytes => 3b'110 
+// IN case of the Unit Constant Stride since we are loading the continuous memory and 
+// in one burst so we dont need the counter for the indexings and counting of the data 
+// as we are always using the full data bus width for each beat so we don't need to count
+// data and therefore we are not using the counter for unit const stride 
+
+
+// In case of the UNIT-CONSTANT-STRIDE :
+// sew = eew
+// vlmax = evlmax
+// In case of INDEX STRIDE : 
+// sew = sew (data part)
+// vlamx = vlmax (data part)
+// width = eew (inndex part)
+
+    
 
     // Generate a unique random index in a single cycle (Index Unordered Stride)
     always_comb begin
@@ -228,40 +255,47 @@ module vec_lsu #(
         case (width)
             3'b000: begin
                 selected_stride = vs2_data[(count_el * 8) +: 8];
-                add_el = `DATA_BUS/8;
             end
             3'b101: begin 
                 selected_stride = vs2_data[(count_el * 16) +: 16];
-                add_el = `DATA_BUS/16;
             end
             3'b110: begin
                 selected_stride = vs2_data[(count_el * 32) +: 32];
-                add_el = `DATA_BUS/32;
             end
             3'b111: begin 
                 if (index_str)begin 
                     $error("SEW = 64 is not supported for XLEN = 32 ");
                 end
-                else begin
-                    add_el = `DATA_BUS/64;
-                end                
             end
             default: begin
                 selected_stride = 0;
-                add_el = 0;
             end
         endcase
     end
 
+
         /* Unit and Constant Stride */
-    assign stride_mux = stride_sel ? (`DATA_BUS / 8) : $unsigned(rs2_data[7:0]);
+
+    // In case if stride sel is one or rs2_data that is the constant stride offset is 1
+    // then treat the instruction as the unit stride  
+    assign unit_stride = stride_sel || ($unsigned(rs2_data[7:0]) == 1);
+
+    // If the stride sel is 0 and the rs2_data is not 1 then it is constant stride 
+    assign const_stride = !stride_sel && !($unsigned(rs2_data[7:0]) == 1);
+    
     assign unit_const_element_strt = rs1_data;  // Base address
 
 
   // STRIDE VALUE CALCULATION
     always_comb  begin
-         if (unit_const_str_en) 
-            stride_value = stride_mux;
+        if (const_stride)begin
+            if (count_el == 0)begin
+                stride_value = unit_const_element_strt;
+            end
+            else begin
+                stride_value = $unsigned(rs2_data[7:0]);
+            end
+        end
         else if (index_str_en) begin
             if (index_unordered)begin
                 stride_value = random_str_array[count_el];
@@ -278,20 +312,86 @@ module vec_lsu #(
     always_ff @(posedge clk or negedge n_rst) begin
         if (!n_rst) begin
             lsu2mem_addr <= 0;
+            burst_type   <= INCR;
+            burst_len    <= 0;
+            burst_size   <= 3'b110;
         end
         else if ((st_inst ||ld_inst) && index_str)begin
             if (count_en) begin
                 lsu2mem_addr <= rs1_data + stride_value;
+                burst_len    <= 0; // 0 means one beat in the burst
+                burst_type   <= INCR;
+                case (sew)
+                    8:   burst_size = 0;
+                    16:  burst_size = 1;
+                    32:  burst_size = 2;
+                    64:  burst_size = 3;
+                    default: burst_size = 0;  
+                endcase   
             end                
         end
-        else begin
-            if(start_unit_cont)begin
-                lsu2mem_addr <= unit_const_element_strt;
-            end
-            else if (count_en)begin
+        else if ((st_inst ||ld_inst) && const_stride)begin
+            if (count_en) begin
                 lsu2mem_addr <= lsu2mem_addr + stride_value;
-            end    
-        end        
+                burst_len    <= 0; // 0 means one beat in the burst
+                burst_type   <= INCR;
+                case (sew)
+                    8:   burst_size = 0;
+                    16:  burst_size = 1;
+                    32:  burst_size = 2;
+                    64:  burst_size = 3;
+                    default: burst_size = 0;  
+                endcase   
+            end                
+        end
+        else if ((st_inst ||ld_inst) && unit_stride)begin
+            lsu2mem_addr <= unit_const_element_strt;
+            burst_size   <= 3'b110;  // 64 bytes in each beat
+            burst_type   <= INCR;(
+            case (sew)
+                8: begin
+                    case (vlmax)
+                        64  : burst_len = (64  * 8 ) / `DATA_BUS_WIDTH; // 512 / 512 = 1
+                        128 : burst_len = (128 * 8 ) / `DATA_BUS_WIDTH; // 1024 / 512 = 2
+                        256 : burst_len = (256 * 8 ) / `DATA_BUS_WIDTH; // 2048 / 512 = 4
+                        512 : burst_len = (512 * 8 ) / `DATA_BUS_WIDTH; // 4096 / 512 = 8
+                        default: burst_len = 0;
+                    endcase
+                end
+
+                16: begin
+                    case (vlmax)
+                        32  : burst_len = (32  * 16) / `DATA_BUS_WIDTH;
+                        64  : burst_len = (64  * 16) / `DATA_BUS_WIDTH;
+                        128 : burst_len = (128 * 16) / `DATA_BUS_WIDTH;
+                        256 : burst_len = (256 * 16) / `DATA_BUS_WIDTH;
+                        default: burst_len = 0;
+                    endcase
+                end
+
+                32: begin
+                    case (vlmax)
+                        16  : burst_len = (16  * 32) / `DATA_BUS_WIDTH;
+                        32  : burst_len = (32  * 32) / `DATA_BUS_WIDTH;
+                        64  : burst_len = (64  * 32) / `DATA_BUS_WIDTH;
+                        128 : burst_len = (128 * 32) / `DATA_BUS_WIDTH;
+                        default: burst_len = 0;
+                    endcase
+                end
+
+                64: begin
+                    case (vlmax)
+                        8   : burst_len = (8  * 64) / `DATA_BUS_WIDTH;
+                        16  : burst_len = (16 * 64) / `DATA_BUS_WIDTH;
+                        32  : burst_len = (32 * 64) / `DATA_BUS_WIDTH;
+                        64  : burst_len = (64 * 64) / `DATA_BUS_WIDTH;
+                        default: burst_len = 0;
+                    endcase
+                end
+
+                default: burst_len = 0;
+            endcase
+        end           
     end 
 
   
@@ -302,11 +402,8 @@ module vec_lsu #(
         else if (is_loaded_reg || is_stored || error_flag)begin
             count_el <= 0;
         end
-        else if (count_en) begin
-            if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))
-                count_el <= count_el + add_el;
-            else
-                count_el <= count_el + 1;
+        else if (count_en) begin           
+            count_el <= count_el + 1;
         end
         else begin
             count_el <= count_el;
@@ -330,11 +427,9 @@ module vec_lsu #(
 
     always_ff @(posedge clk or negedge n_rst) begin
         if (!n_rst) begin
-            data_en       <= 0;
             is_loaded     <= 0;
         end
         else begin
-            data_en       <= data_en_next;
             is_loaded     <= is_loaded_reg;
         end    
     end
@@ -342,20 +437,14 @@ module vec_lsu #(
 
     always_comb begin
         if (ld_inst)begin
-           if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))
-                is_loaded_reg = (count_el == vlmax + add_el);
-            else 
-                is_loaded_reg = (count_el == vlmax + 1);
+            load_complete = (count_el == vlmax + 1);
         end
         else if (st_inst)begin
-            if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))
-                is_stored = (count_el == vlmax + add_el);
-            else 
-                is_stored = (count_el == vlmax + 1);
+            store_complete = (count_el == vlmax + 1);
         end
         else begin
-            is_loaded_reg = 1'b0;
-            is_stored     = 1'b0;
+            store_complete = 1'b0;
+            load_complete  = 1'b0;
         end 
     end
 
@@ -415,24 +504,25 @@ module vec_lsu #(
                 loaded_data[i] <= 0;
         end
         else if (data_en) begin
-            if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))begin
-                for (int i = 0; i < add_el; i++) begin
-                    automatic int base_index = (count_el - 2*add_el) + i; // Calculate the row index in the 2D array
-                    case (sew)
-                        7'd8:  loaded_data[base_index] <= mem2lsu_data[(8 * i) +: 8];   
-                        7'd16: loaded_data[base_index] <= mem2lsu_data[(16 * i) +: 16]; 
-                        7'd32: loaded_data[base_index] <= mem2lsu_data[(32 * i) +: 32]; 
-                        7'd64: loaded_data[base_index] <= mem2lsu_data[(64 * i) +: 64]; 
-                        default: loaded_data[base_index] <= 'h0; 
-                    endcase
-                end
+            if (unit_stride)begin
+                for (int i = 0; i < `MAX_VLEN; i++) begin
+                    if (i < vlmax) begin
+                        case (sew)
+                            8:  loaded_data[i] = mem2lsu_data[i*8   +: 8];
+                            16: loaded_data[i] = mem2lsu_data[i*16  +: 16];
+                            32: loaded_data[i] = mem2lsu_data[i*32  +: 32];
+                            64: loaded_data[i] = mem2lsu_data[i*64  +: 64];
+                            default: loaded_data[i] = '0;
+                        endcase
+                    end
+                end          
             end
             else begin     
                 case (sew)
-                    7'd8:  loaded_data[count_el-2] <= mem2lsu_data[7:0];
-                    7'd16: loaded_data[count_el-2] <= mem2lsu_data[15:0];
-                    7'd32: loaded_data[count_el-2] <= mem2lsu_data[31:0];
-                    7'd64: loaded_data[count_el-2] <= mem2lsu_data[64:0];
+                    7'd8:  loaded_data[count_el-1] <= mem2lsu_data[7:0];
+                    7'd16: loaded_data[count_el-1] <= mem2lsu_data[15:0];
+                    7'd32: loaded_data[count_el-1] <= mem2lsu_data[31:0];
+                    7'd64: loaded_data[count_el-1] <= mem2lsu_data[63:0];
                     default: loaded_data[count_el-2] <= mem2lsu_data;
             endcase
             end
@@ -441,10 +531,20 @@ module vec_lsu #(
 
 
     always_comb begin
-        vd_data = 0;
-        for (int i = 0; i < vlmax; i++) 
-            vd_data = vd_data | (loaded_data[i] << (i * sew));
+        vd_data = '0;
+        for (int i = 0; i < `MAX_VLEN; i++) begin
+            if (i < vlmax) begin
+                case (sew)
+                    8:   vd_data[i*8   +: 8]  = loaded_data[i][7:0];
+                    16:  vd_data[i*16  +: 16] = loaded_data[i][15:0];
+                    32:  vd_data[i*32  +: 32] = loaded_data[i][31:0];
+                    64:  vd_data[i*64  +: 64] = loaded_data[i][63:0];
+                    default: ;/* leave as zero */
+                endcase
+            end
+        end
     end
+
 
 
 // STORE DATA
@@ -453,19 +553,34 @@ module vec_lsu #(
         if (!n_rst) begin
             lsu2mem_data <= 'h0;
         end
-        else if (st_data_en) begin
-            if (!index_str && (stride_sel || (!stride_sel && ($unsigned(rs2_data[7:0]) == 1))))begin
-                for (int i = 0; i < add_el; i++) begin
-                    automatic int base_index = (count_el  + i); // Calculate the row index in the 2D array
-                    case (sew)
-                        7'd8:  lsu2mem_data[(8 * i) +: 8] = vs3_data[(base_index * 8) +: 8];   // Pack 8-bit elements
-                        7'd16: lsu2mem_data[(16 * i) +: 16] = vs3_data[(base_index * 16) +: 16]; // Pack 16-bit elements
-                        7'd32: lsu2mem_data[(32 * i) +: 32] = vs3_data[(base_index * 32) +: 32]; // Pack 32-bit elements
-                        7'd64: lsu2mem_data[(64 * i) +: 64] = vs3_data[(base_index * 64) +: 64]; // Pack 64-bit elements
-                        default: lsu2mem_data = 0; 
-                    endcase
+        else if (store_data_en)begin
+            if (unit_stride)begin
+                for (int i = 0; i < `MAX_VLEN; i++) begin
+                    if (i < vlmax) begin
+                        case (sew)
+                            7'd8: begin 
+                                lsu2mem_data[(8 * i) +: 8] = vs3_data[(i*8) +: 8];
+                                write_strobe[i] = 1;
+                            end
+                            7'd16: begin 
+                                lsu2mem_data[(16 * i) +: 16] = vs3_data[(i*16) +: 15];
+                                write_strobe[2*i +: 2] = 1;
+                            end
+                            7'd32: begin 
+                                lsu2mem_data[(32 * i) +: 32] = vs3_data[(i*32) +: 32];
+                                write_strobe[4*i +: 4] = 1;
+                            end
+                            7'd64: begin 
+                                lsu2mem_data[(64 * i) +: 64] = vs3_data[(i*64) +: 64];
+                                write_strobe[8*i +: 8] = 1;
+                            end    
+                            default: begin 
+                                lsu2mem_data = 0;
+                                write_strobe = 0;
+                            end 
+                        endcase
+                    end
                 end
-                wr_strobe <= {WR_STROB{1'b1}};
             end
             else begin
                 if (index_str && index_unordered)begin
@@ -486,7 +601,10 @@ module vec_lsu #(
                             lsu2mem_data[63:0] <= vs3_data[random_str_array[count_el] +: 64];
                             wr_strobe <= 'b11111111;
                         end
-                        default: lsu2mem_data <= 'h0;
+                        default: begin 
+                                lsu2mem_data = 0;
+                                write_strobe = 0;
+                        end
                     endcase
                 end
                 else begin     
@@ -507,7 +625,10 @@ module vec_lsu #(
                             lsu2mem_data[63:0] <= vs3_data[(count_el) * 64 +: 64];
                             wr_strobe <= 'b11111111;
                         end
-                        default: lsu2mem_data <= 'h0;
+                        default: begin 
+                                lsu2mem_data = 0;
+                                write_strobe = 0;
+                        end
                     endcase
                 end   
             end
@@ -517,11 +638,13 @@ module vec_lsu #(
 
 /****************************************************** CONTROLLER *****************************************************/
 
-    typedef enum logic [2:0]{IDLE, 
-                            LOAD_UNIT_CONST,
-                            LOAD_INDEX, 
-                            STORE_UNIT_CONST, 
-                            STORE_INDEX
+    typedef enum logic [3:0]{IDLE, 
+                            LOAD_UNIT_STR,
+                            LOAD_CONST_STR,
+                            LOAD_INDEX_STR, 
+                            STORE_UNIT_STR, 
+                            STORE_CONST_STR,
+                            STORE_INDEX_STR
                             } lsu_state_e;
     
     lsu_state_e c_state, n_state;
@@ -533,133 +656,191 @@ module vec_lsu #(
             c_state <= n_state;
     end
 
+
     always_comb begin
         n_state             = c_state;
-        data_en_next        = 0;
         count_en            = 0;
         ld_req              = 0;
         st_req              = 0;
-        start_unit_cont     = 1;
         index_str_en        = 0;
-        unit_const_str_en   = 0;
         st_data_en          = 0;
+        data_en             = 0;
+        is_stored           = 0;
+        is_loaded_reg       = 0;
 
         if (error_flag) begin
-            n_state = IDLE;
-            count_en = 0;
-            data_en_next = 0;
-            st_data_en = 0;
-            ld_req = 0;
-            st_req = 0;
+            n_state     = IDLE;
+            count_en    = 0;
+            data_en     = 0;
+            st_data_en  = 0;
+            ld_req      = 0;
+            st_req      = 0;
         end else begin
             case (c_state)
                 IDLE: begin
-                    
-                    start_unit_cont = 1;
+                
                     if (ld_inst && new_inst) begin
                         if (index_str)begin
-
-                            n_state             = LOAD_INDEX;
+                            n_state             = LOAD_INDEX_STR;
                             index_str_en        = 1'b1;
-                            count_en            = 1; 
-                        
+                            count_en            = 1;
+                            ld_req              = 1;
+                        end
+                        else if (const_stride)begin
+                            n_state             = LOAD_CONST_STR;
+                            count_en            = 1;
+                            ld_req              = 1;
+                        end
+                        else if (unit_stride)begin
+                            n_state             = LOAD_UNIT_STR;
+                            ld_req              = 1;                        
                         end
                         else begin
-
-                            n_state             = LOAD_UNIT_CONST;
-                            unit_const_str_en   = 1;
-                            count_en            = 1;
-                        
-                        end
+                            n_state             = IDLE;
+                            count_en            = 0;
+                            ld_req              = 0;
+                            index_str_en        = 0; 
+                        end 
                     end
+                
                     else if (st_inst && new_inst) begin
                         if (index_str)begin
-
-                            n_state             = STORE_INDEX;
+                            n_state             = STORE_INDEX_STR;
                             index_str_en        = 1'b1;
                             count_en            = 1;
-                            st_data_en          = 1; 
-                        
+                            st_req              = 1;
+                            st_data_en          = 1;  
                         end
-                        else begin
-
-                            n_state             = STORE_UNIT_CONST;
-                            unit_const_str_en   = 1;
+                        else if (const_stride)begin
+                            n_state             = STORE_CONST_STR;
                             count_en            = 1;
+                            st_req              = 1;
                             st_data_en          = 1;
                         end
+                        else if (unit_stride)begin
+                            n_state             = LOAD_UNIT_STR;
+                            st_req              = 1;
+                            st_data_en          = 1;                        
+                        end
+                        else begin
+                            n_state             = IDLE;
+                            count_en            = 0;
+                            st_req              = 0;
+                            index_str_en        = 0;
+                            st_data_en          = 0; 
+                        end
                     end
                 end
-                LOAD_UNIT_CONST: begin
-
-                    data_en_next        = 1;
-                    count_en            = 1;
-                    unit_const_str_en   = 0;
-                    start_unit_cont     = 0;
-                    ld_req              = !is_loaded_reg;  // Assert until all elements are loaded
-                    
-                    if (is_loaded_reg) begin
-
-                        n_state         = IDLE;
-                        ld_req          = 0;
-                        data_en_next    = 0;
-                        count_en        = 0;
-                    
-                    end
-                end
-                LOAD_INDEX : begin
-
-                    data_en_next        = 1;
-                    count_en            = 1;
-                    index_str_en        = 1;
-                    start_unit_cont     = 0;
-                    ld_req              = !is_loaded_reg;
-
-                    if (is_loaded_reg) begin
-
-                        n_state         = IDLE;
-                        ld_req          = 0;
-                        index_str_en    = 0;
-                        data_en_next    = 0;
-                        count_en        = 0;
-                    end
+                LOAD_UNIT_STR: begin
+                    if (burst_valid_data)begin
+                        data_en       = 1;
+                        is_loaded_reg = 1;
+                    end    
                 end
 
-                STORE_UNIT_CONST: begin
-
-                    count_en            = 1;
-                    st_data_en          = 1;
-                    unit_const_str_en   = 0;
-                    start_unit_cont     = 0;
-                    st_req              = !is_stored;  // Assert until all elements are stored
-                    
-                    if (is_stored) begin
-
-                        n_state         = IDLE;
-                        st_req          = 0;
-                        st_data_en      = 0;
-                        count_en        = 0;
+                LOAD_CONST_STR : begin
+                    if (burst_valid_data)begin
+                        if (load_complete)begin
+                            data_en       = 1;
+                            is_loaded_reg = 1;
+                        end
+                        else begin
+                            data_en       = 1;
+                            count_en      = 1;
+                            ld_req        = 1;
+                            is_loaded_reg = 0;
+                        end
+                    end
+                    else begin
+                        data_en       = 0;
+                        count_en      = 0;
+                        ld_req        = 0;
+                        is_loaded_reg = 0;
                     end
                 end
-                STORE_INDEX : begin
-
-                    count_en            = 1;
-                    st_data_en          = 1;
-                    index_str_en        = 1;
-                    start_unit_cont     = 0;
-                    st_req              = !is_stored;
-
-                    if (is_stored) begin
-
-                        n_state         = IDLE;
-                        st_req          = 0;
-                        index_str_en    = 0;
-                        st_data_en      = 0;
-                        count_en        = 0;
+                
+                LOAD_INDEX_STR : begin
+                    if (burst_valid_data)begin
+                        if (load_complete)begin
+                            data_en       = 1;
+                            index_str_en  = 0;
+                            is_loaded_reg = 1;
+                        end
+                        else begin
+                            data_en       = 1;
+                            count_en      = 1;
+                            index_str_en  = 1;
+                            ld_req        = 1;
+                            is_loaded_reg = 0;
+                        end
+                    end
+                    else begin
+                        data_en       = 0;
+                        count_en      = 0;
+                        index_str_en  = 0;
+                        ld_req        = 0;
+                        is_loaded_reg = 0;
                     end
                 end
+
+                STORE_UNIT_STR: begin
+                    if (burst_wr_valid)begin
+                        is_stored = 1;
+                    end    
+                end
+
+                STORE_CONST_STR : begin
+                    if (burst_wr_valid)begin
+                        if (store_complete)begin
+                            is_stored = 1;
+                        end
+                        else begin
+                            st_data_en    = 1;
+                            count_en      = 1;
+                            st_req        = 1;
+                        end
+                    end
+                    else begin
+                        st_data_en    = 0;
+                        count_en      = 0;
+                        st_req        = 0;
+                    end
+                end
+
+                STORE_INDEX_STR : begin
+                    if (burst_wr_valid)begin
+                        if (store_complete)begin
+                            is_stored = 1; 
+                        end
+                        else begin
+                            st_data_en    = 1;
+                            count_en      = 1;
+                            index_str_en  = 1;
+                            st_req        = 1;
+                        end
+                    end
+                    else begin
+                        st_data_en    = 0;
+                        count_en      = 0;
+                        index_str_en  = 0;
+                        st_req        = 0;
+                    end
+                end
+                default : begin
+                    n_state             = IDLE;
+                    count_en            = 0;
+                    ld_req              = 0;
+                    st_req              = 0;
+                    index_str_en        = 0;
+                    st_data_en          = 0;
+                    data_en             = 0;
+                    is_stored           = 0;
+                    is_loaded_reg       = 0;
+                end
+                
             endcase
         end
     end
+
 endmodule
 
