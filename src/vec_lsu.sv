@@ -7,12 +7,8 @@
 // Date         : 15 Jan , 2025.
 
 
-
-
 `include "../define/vec_regfile_defs.svh"
 `include "../AXI-4/define/axi_4_defs.svh"
-`include "../AXI-4/define/axi_4_pkg.sv"
-
 
 module vec_lsu (
     input   logic                               clk,
@@ -150,7 +146,7 @@ module vec_lsu (
 
 // IN Case of UNIT STRIDE  , We will load the data in one burst operation such that :
 // burst len = (vlmax*sew)/DATABUS_Width
-// burst type = INCR
+// burst type = BURST_INCR
 // burst_size =  number of bytes in each beat (DATA_BUS/8)=> 512/8 = 64 bytes => 3b'110 
 // IN case of the Unit Constant Stride since we are loading the continuous memory and 
 // in one burst so we dont need the counter for the indexings and counting of the data 
@@ -312,7 +308,7 @@ module vec_lsu (
     always_ff @(posedge clk or negedge n_rst) begin
         if (!n_rst) begin
             lsu2mem_addr <= 0;
-            burst_type   <= INCR;
+            burst_type   <= BURST_INCR;
             burst_len    <= 0;
             burst_size   <= 3'b110;
         end
@@ -320,7 +316,7 @@ module vec_lsu (
             if (count_en) begin
                 lsu2mem_addr <= rs1_data + stride_value;
                 burst_len    <= 0; // 0 means one beat in the burst
-                burst_type   <= INCR;
+                burst_type   <= BURST_INCR;
                 case (sew)
                     8:   burst_size = 0;
                     16:  burst_size = 1;
@@ -334,7 +330,7 @@ module vec_lsu (
             if (count_en) begin
                 lsu2mem_addr <= lsu2mem_addr + stride_value;
                 burst_len    <= 0; // 0 means one beat in the burst
-                burst_type   <= INCR;
+                burst_type   <= BURST_INCR;
                 case (sew)
                     8:   burst_size = 0;
                     16:  burst_size = 1;
@@ -347,7 +343,7 @@ module vec_lsu (
         else if ((st_inst ||ld_inst) && unit_stride)begin
             lsu2mem_addr <= unit_const_element_strt;
             burst_size   <= 3'b110;  // 64 bytes in each beat
-            burst_type   <= INCR;(
+            burst_type   <= BURST_INCR;
             case (sew)
                 8: begin
                     case (vlmax)
@@ -553,30 +549,30 @@ module vec_lsu (
         if (!n_rst) begin
             lsu2mem_data <= 'h0;
         end
-        else if (store_data_en)begin
+        else if (st_data_en)begin
             if (unit_stride)begin
                 for (int i = 0; i < `MAX_VLEN; i++) begin
                     if (i < vlmax) begin
                         case (sew)
                             7'd8: begin 
                                 lsu2mem_data[(8 * i) +: 8] = vs3_data[(i*8) +: 8];
-                                write_strobe[i] = 1;
+                                wr_strobe[i] = 1;
                             end
                             7'd16: begin 
                                 lsu2mem_data[(16 * i) +: 16] = vs3_data[(i*16) +: 15];
-                                write_strobe[2*i +: 2] = 1;
+                                wr_strobe[2*i +: 2] = 1;
                             end
                             7'd32: begin 
                                 lsu2mem_data[(32 * i) +: 32] = vs3_data[(i*32) +: 32];
-                                write_strobe[4*i +: 4] = 1;
+                                wr_strobe[4*i +: 4] = 1;
                             end
                             7'd64: begin 
                                 lsu2mem_data[(64 * i) +: 64] = vs3_data[(i*64) +: 64];
-                                write_strobe[8*i +: 8] = 1;
+                                wr_strobe[8*i +: 8] = 1;
                             end    
                             default: begin 
                                 lsu2mem_data = 0;
-                                write_strobe = 0;
+                                wr_strobe = 0;
                             end 
                         endcase
                     end
@@ -603,7 +599,7 @@ module vec_lsu (
                         end
                         default: begin 
                                 lsu2mem_data = 0;
-                                write_strobe = 0;
+                                wr_strobe = 0;
                         end
                     endcase
                 end
@@ -627,7 +623,7 @@ module vec_lsu (
                         end
                         default: begin 
                                 lsu2mem_data = 0;
-                                write_strobe = 0;
+                                wr_strobe = 0;
                         end
                     endcase
                 end   
