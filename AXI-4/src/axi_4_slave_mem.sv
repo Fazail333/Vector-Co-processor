@@ -4,7 +4,7 @@
 //                send by the read write  and gentertes the address based on the information described
 //                by the channels control signals and generates the read write response.    
 
-`include "../define/axi_4_defs.svh"
+`include "axi_4_defs.svh"
 
 import axi_4_pkg::*;
 
@@ -85,7 +85,7 @@ module axi4_slave_mem(
     logic   [`XLEN-1:0]             read_addr;
     logic   [`XLEN-1:0]             write_addr;
     logic   [`DATA_BUS_WIDTH-1:0]   wr_data;
-    logic   [STROBE_WIDTH-1:0]      write_strobe;
+    logic   [`STROBE_WIDTH-1:0]     write_strobe;
     logic                           wlast;
     logic   [7:0]                   burst_len;        // Burst Length . Number of burst transfers
     logic   [5:0]                   burst_size;       // Burst Size . Number of bytes to be transfered in each burst 
@@ -244,7 +244,7 @@ module axi4_slave_mem(
 
 
     always_comb begin 
-        if (burst_type == BURST_WRAP)begin
+        if (burst_type == `BURST_WRAP)begin
             wrap_boundary   = (read_addr / (burst_size * burst_len)) * (burst_size * burst_len);
         end
         else begin
@@ -272,13 +272,13 @@ module axi4_slave_mem(
                     if (!re_data_channel.rlast) begin
                         if (incre_counter ) begin
                             case (burst_type)
-                                BURST_FIXED: begin
+                                `BURST_FIXED: begin
                                     current_addr <= current_addr;
                                 end
-                                BURST_INCR: begin
+                                `BURST_INCR: begin
                                     current_addr    <= current_addr + burst_size;
                                 end
-                                BURST_WRAP: begin
+                                `BURST_WRAP: begin
                                     if ((current_addr + burst_size) >= (wrap_boundary + (burst_size * burst_len))) begin
                                         current_addr <= wrap_boundary;
                                     end else begin
@@ -317,13 +317,13 @@ module axi4_slave_mem(
                         // Skip address generation if this is the only transaction (first is wlast)
                         if (incre_counter) begin
                             case (burst_type)
-                                BURST_FIXED: begin
+                                `BURST_FIXED: begin
                                     current_addr <= current_addr;
                                 end
-                                BURST_INCR: begin
+                                `BURST_INCR: begin
                                     current_addr <= current_addr + burst_size;
                                 end
-                                BURST_WRAP: begin
+                                `BURST_WRAP: begin
                                     if ((current_addr + burst_size) >= (wrap_boundary + (burst_size * burst_len))) begin
                                         current_addr <= wrap_boundary;
                                     end else begin
@@ -360,7 +360,7 @@ module axi4_slave_mem(
         re_data_channel.rid   = 0;
         re_data_channel.rlast = 0;
         re_data_channel.rdata = 0;
-        re_data_channel.rresp = RESP_OKAY;
+        re_data_channel.rresp = `RESP_OKAY;
         data_fetched          = 0;
         
         if (ld_req && burst_active )begin
@@ -374,15 +374,15 @@ module axi4_slave_mem(
                     for (int i = 0; i < burst_size; i++) begin
                         re_data_channel.rdata[i*8 +: 8] = memory[current_addr + i];
                     end
-                    re_data_channel.rresp = RESP_OKAY;
+                    re_data_channel.rresp = `RESP_OKAY;
             end 
             1'b0 : begin
                     re_data_channel.rdata = 0;
-                    re_data_channel.rresp = RESP_DECERR;
+                    re_data_channel.rresp = `RESP_DECERR;
             end
             default : begin
                     re_data_channel.rdata = 0;
-                    re_data_channel.rresp = RESP_DECERR;
+                    re_data_channel.rresp = `RESP_DECERR;
             end 
             endcase
         end  
@@ -402,7 +402,7 @@ module axi4_slave_mem(
         else begin
             if (store_data) begin
                 if (addr_valid && !wr_id_mismatch) begin
-                    for (int i = 0; i < STROBE_WIDTH; i++) begin
+                    for (int i = 0; i < `STROBE_WIDTH; i++) begin
                         if (write_strobe[i]) begin
                             memory[current_addr + i] <= wr_data[8*i +: 8];
                         end
@@ -435,20 +435,20 @@ module axi4_slave_mem(
     always_comb begin 
             
         wr_resp_channel.bid = 0;
-        wr_resp_channel.bresp = RESP_OKAY;
+        wr_resp_channel.bresp = `RESP_OKAY;
 
         if (wlast_done )begin
             wr_resp_channel.bid = write_addr_id;
             // Response CASE 
             case (write_err)
             1'b1 : begin
-                wr_resp_channel.bresp = RESP_DECERR;
+                wr_resp_channel.bresp = `RESP_DECERR;
             end 
             1'b0 : begin
-                wr_resp_channel.bresp = RESP_OKAY;
+                wr_resp_channel.bresp = `RESP_OKAY;
             end
             default : begin
-                wr_resp_channel.bresp = RESP_DECERR;
+                wr_resp_channel.bresp = `RESP_DECERR;
             end 
             endcase   
         end

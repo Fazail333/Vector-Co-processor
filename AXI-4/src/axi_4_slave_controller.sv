@@ -2,7 +2,7 @@
 // Date         : 7 April 2025
 // Description  : This file contain the slave controller for the axi 4 that is used in the Slave side (memory) to complete the axi4 protocol  
 
-`include "../define/axi_4_defs.svh"
+import axi_4_pkg::axi_4_slave_states_e;
 
 module axi_4_slave_controller (
     
