@@ -3,7 +3,7 @@
 // Description  : This file contains the wrapper of the vector_processor where datapath and controller  are connnected together 
 
 `include "../define/vector_processor_defs.svh"
-`include "../AXI-4/define/axi_4_pkg.sv"
+import axi_4_pkg::*;
 
 module vector_processor(
     
@@ -30,7 +30,7 @@ module vector_processor(
     output  logic                           vec_pro_ack,            // signal that tells that successfully implemented the previous instruction and ready to  take next iinstruction
 
     // val_ready_controller --> scaler_processor
-    output  logic                           vec_pro_ready           // tells that vector processor is ready to take the instruction
+    output  logic                           vec_pro_ready,          // tells that vector processor is ready to take the instruction
 
     //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> AXI 4 SIGNALS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<//
 
