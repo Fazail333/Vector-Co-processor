@@ -1,4 +1,4 @@
-`include "../define/vec_de_csr_defs.svh"
+`include "vec_de_csr_defs.svh"
 
 module vec_csr_regfile (
     input   logic                    clk,

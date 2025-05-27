@@ -1,6 +1,4 @@
 
-`include "../define/vector_processor_defs.svh"
-
 module val_ready_controller (
     
     input   logic       clk,
@@ -17,6 +15,12 @@ module val_ready_controller (
     // datapath -->   val_ready_controller 
     input   logic       inst_done
 );
+
+typedef enum logic [1:0]{  
+    IDLE,
+    PROCESS,
+    WAIT_READY
+} val_read_states_e;
 
 val_read_states_e  c_state,n_state;
 

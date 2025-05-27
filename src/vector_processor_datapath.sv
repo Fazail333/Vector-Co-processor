@@ -2,8 +2,9 @@
 // Date         : 23 Sep 2024
 // Description  : This file contains the  datapath of the vector_processor where different units are connnected together 
 
-`include "../define/vector_processor_defs.svh"
-`include "../define/vec_regfile_defs.svh"
+`include "vector_processor_defs.svh"
+`include "vec_regfile_defs.svh"
+`include "axi_4_defs.svh"
 
 module vector_processor_datapth (
     
@@ -15,7 +16,7 @@ module vector_processor_datapth (
     input   logic   [`XLEN-1:0]                 rs2_data,           // The scaler input from the scaler processor for the instructon that needs data from the  scaler register file across the rs2 address
 
     //Inputs from AXI 4 MASTER-> vec_lsu
-    input   logic   [`DATA_BUS*BURST_MAX-1:0]   mem2lsu_data,
+    input   logic   [`DATA_BUS*`BURST_MAX-1:0]  mem2lsu_data,
     input   logic                               burst_valid_data,
     input   logic                               burst_wr_valid,
 
@@ -24,8 +25,8 @@ module vector_processor_datapth (
     output  logic   [`XLEN-1:0]                 lsu2mem_addr,           // Gives the memory address to load or store data
     output  logic                               ld_req,                 // load request signal to the AXI 4 MASTER
     output  logic                               st_req,                 // store request signal to the AXI 4 MASTER
-    output  logic   [`DATA_BUS*BURST_MAX-1:0]   lsu2mem_data,           // Data to be stored
-    output  logic   [WR_STROB*BURST_MAX-1:0]    wr_strobe,              // THE bytes of the DATA_BUS that contains the actual data 
+    output  logic   [`DATA_BUS*`BURST_MAX-1:0]  lsu2mem_data,           // Data to be stored
+    output  logic   [WR_STROB*`BURST_MAX-1:0]   wr_strobe,              // THE bytes of the DATA_BUS that contains the actual data 
     output  logic   [7:0]                       burst_len,
     output  logic   [2:0]                       burst_size,
     output  logic   [1:0]                       burst_type,

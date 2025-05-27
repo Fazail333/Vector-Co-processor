@@ -2,7 +2,8 @@
 // Date         : 1 Oct 2024
 // Description  : This file contains the wrapper of the vector_processor where datapath and controller  are connnected together 
 
-`include "../define/vector_processor_defs.svh"
+`include "vector_processor_defs.svh"
+`include "axi_4_defs.svh"
 import axi_4_pkg::*;
 
 module vector_processor(
@@ -100,14 +101,14 @@ logic                               inst_reg_en;
 logic   [`XLEN-1:0]                 lsu2mem_addr;           // Gives the memory address to load or store data
 logic                               ld_req;                 // load request signal to the AXI 4 MASTER
 logic                               st_req;                 // store request signal to the AXI 4 MASTER
-logic   [`DATA_BUS*BURST_MAX-1:0]   lsu2mem_data;           // Data to be stored
-logic   [WR_STROB*BURST_MAX-1:0]    wr_strobe;              // THE bytes of the DATA_BUS that contains the actual data 
+logic   [`DATA_BUS*`BURST_MAX-1:0]  lsu2mem_data;           // Data to be stored
+logic   [WR_STROB*`BURST_MAX-1:0]   wr_strobe;              // THE bytes of the DATA_BUS that contains the actual data 
 logic   [7:0]                       burst_len;
 logic   [2:0]                       burst_size;
 logic   [1:0]                       burst_type;
 
 // AXI 4 MASTER  -->  VLSU 
-logic   [`DATA_BUS*BURST_MAX-1:0]   mem2lsu_data;
+logic   [`DATA_BUS*`BURST_MAX-1:0]  mem2lsu_data;
 logic                               burst_valid_data;
 logic                               burst_wr_valid;
 

@@ -7,8 +7,8 @@
 // Date         : 15 Jan , 2025.
 
 
-`include "../define/vec_regfile_defs.svh"
-`include "../AXI-4/define/axi_4_defs.svh"
+`include "vec_regfile_defs.svh"
+`include "axi_4_defs.svh"
 
 module vec_lsu (
     input   logic                               clk,
@@ -42,16 +42,16 @@ module vec_lsu (
 
     // vec_lsu -> AXI 4 MASTER
     output  logic   [`XLEN-1:0]                 lsu2mem_addr,   // Memory address
-    output  logic   [`DATA_BUS*BURST_MAX-1:0]   lsu2mem_data,   // Stored Data
+    output  logic   [`DATA_BUS*`BURST_MAX-1:0]  lsu2mem_data,   // Stored Data
     output  logic                               ld_req,         // Load request
     output  logic                               st_req,         // Store request
-    output  logic   [WR_STROB*BURST_MAX-1:0]    wr_strobe,      // THE bytes of the DATA_BUS that contains the actual data 
+    output  logic   [WR_STROB*`BURST_MAX-1:0]   wr_strobe,      // THE bytes of the DATA_BUS that contains the actual data 
     output  logic   [7:0]                       burst_len,      // TElls the length of the burst
     output  logic   [2:0]                       burst_size,     // Size of data in each burst
     output  logic   [1:0]                       burst_type,     // Type of burst
 
     // AXI 4 MASTER -> vec_lsu
-    input   logic   [`DATA_BUS*BURST_MAX-1:0]   mem2lsu_data,   // LOADED DATA
+    input   logic   [`DATA_BUS*`BURST_MAX-1:0]  mem2lsu_data,   // LOADED DATA
     input   logic                               burst_valid_data,// Tells that loaded data is valid and loaded from memory for whole  burst
     input   logic                               burst_wr_valid,  // Tells that store burst is completed and data is stored 
 
@@ -308,7 +308,7 @@ module vec_lsu (
     always_ff @(posedge clk or negedge n_rst) begin
         if (!n_rst) begin
             lsu2mem_addr <= 0;
-            burst_type   <= BURST_INCR;
+            burst_type   <= `BURST_INCR;
             burst_len    <= 0;
             burst_size   <= 3'b110;
         end
@@ -316,7 +316,7 @@ module vec_lsu (
             if (count_en) begin
                 lsu2mem_addr <= rs1_data + stride_value;
                 burst_len    <= 0; // 0 means one beat in the burst
-                burst_type   <= BURST_INCR;
+                burst_type   <= `BURST_INCR;
                 case (sew)
                     8:   burst_size = 0;
                     16:  burst_size = 1;
@@ -330,7 +330,7 @@ module vec_lsu (
             if (count_en) begin
                 lsu2mem_addr <= lsu2mem_addr + stride_value;
                 burst_len    <= 0; // 0 means one beat in the burst
-                burst_type   <= BURST_INCR;
+                burst_type   <= `BURST_INCR;
                 case (sew)
                     8:   burst_size = 0;
                     16:  burst_size = 1;
@@ -343,7 +343,7 @@ module vec_lsu (
         else if ((st_inst ||ld_inst) && unit_stride)begin
             lsu2mem_addr <= unit_const_element_strt;
             burst_size   <= 3'b110;  // 64 bytes in each beat
-            burst_type   <= BURST_INCR;
+            burst_type   <= `BURST_INCR;
             case (sew)
                 8: begin
                     case (vlmax)
