@@ -1,11 +1,11 @@
-`ifndef axi_4_defs
-`define axi_4_defs
+`ifndef AXI_4_DEFS_SVH
+`define AXI_4_DEFS_SVH
 
 `define XLEN            32
 `define DATA_BUS_WIDTH  512
 `define MEM_DEPTH       4096
 
-parameter BURST_MAX = 256;  // or 256 if max len = 255
+parameter BURST_MAX = 16;  // or 256 if max len = 255
 parameter STROBE_WIDTH = (`DATA_BUS_WIDTH/8);
 
 typedef enum logic [2:0]{  
