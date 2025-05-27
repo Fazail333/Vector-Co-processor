@@ -2,7 +2,7 @@
 // Date         : 7 April 2025
 // Description  : This file contain the controller for the axi 4 master side (vlsu) that is used for the throughput/pushback control between the memory and vlsu  
 
-`include "../define/axi_4_defs.svh"
+`include "axi_4_defs.svh"
 
 import axi_4_pkg::*;
 
@@ -58,14 +58,14 @@ module axi_4_master(
 
     // VLSU -->   AXI 4 MASTER
     input   logic   [`XLEN-1 : 0]                       base_addr,
-    input   logic   [`DATA_BUS_WIDTH*BURST_MAX-1:0]     vlsu_wdata,
-    input   logic   [STROBE_WIDTH*BURST_MAX-1:0]        write_strobe,
+    input   logic   [`DATA_BUS_WIDTH*`BURST_MAX-1:0]    vlsu_wdata,
+    input   logic   [`STROBE_WIDTH*`BURST_MAX-1:0]      write_strobe,
     input   logic   [7:0]                               burst_len,
     input   logic   [2:0]                               burst_size,
     input   logic   [1:0]                               burst_type,
 
     // AXI 4 MASTER  -->  VLSU 
-    output  logic   [`DATA_BUS_WIDTH*BURST_MAX-1:0]     burst_rdata_array,
+    output  logic   [`DATA_BUS_WIDTH*`BURST_MAX-1:0]    burst_rdata_array,
     output  logic                                       burst_valid_data,
     output  logic                                       burst_wr_valid,
 
@@ -88,8 +88,8 @@ module axi_4_master(
     logic [7:0]                             last_burst_len;
     logic [2:0]                             last_burst_size;
     logic [1:0]                             last_burst_type;
-    logic [`DATA_BUS_WIDTH*BURST_MAX-1:0]   last_burst_wdata;
-    logic [STROBE_WIDTH*BURST_MAX-1:0]      last_burst_write_strobe;
+    logic [`DATA_BUS_WIDTH*`BURST_MAX-1:0]  last_burst_wdata;
+    logic [`STROBE_WIDTH*`BURST_MAX-1:0]    last_burst_write_strobe;
     logic                                   resend_burst;
     logic                                   burst_read_err;
     logic                                   burst_active;
@@ -106,9 +106,9 @@ module axi_4_master(
 
     // Select source based on normal or retry burst
     logic [`DATA_BUS_WIDTH-1:0]             curr_data;
-    logic [STROBE_WIDTH-1:0]                curr_strobe;
-    logic [`DATA_BUS_WIDTH*BURST_MAX-1:0]   src_data;
-    logic [STROBE_WIDTH*BURST_MAX-1:0]      src_strobe;
+    logic [`STROBE_WIDTH-1:0]               curr_strobe;
+    logic [`DATA_BUS_WIDTH*`BURST_MAX-1:0]  src_data;
+    logic [`STROBE_WIDTH*`BURST_MAX-1:0]    src_strobe;
     logic [`XLEN-1:0]                       offset;
 
     // AXI 4  ID NUMBER 
@@ -375,7 +375,7 @@ end
             end
             else if (burst_active && s_rvalid && m_rready) begin
                 if (re_data_channel.rid == re_wr_addr_channel.arid) begin
-                    if (re_data_channel.rresp != RESP_OKAY) begin
+                    if (re_data_channel.rresp != `RESP_OKAY) begin
                         burst_read_err <= 1;
                     end
                     else begin
@@ -430,7 +430,7 @@ end
                 if (wr_resp_channel.bid == re_wr_addr_channel.awid)begin
 
                     // Response check
-                    if (wr_resp_channel.bresp != RESP_OKAY) begin
+                    if (wr_resp_channel.bresp != `RESP_OKAY) begin
                         burst_write_err <= 1;
                     end
 
