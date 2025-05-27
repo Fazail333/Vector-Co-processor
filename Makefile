@@ -1,126 +1,91 @@
-SRC_SV:= src/val_ready_controller.sv  		\
-	 src/vec_csr_dec.sv  					\
-	 src/vec_lsu.sv  						\
-	 src/vec_regfile.sv  					\
-	 src/vec_csr_regfile.sv  				\
-	 src/vec_decode.sv  					\
-	 src/vec_mask_unit.sv					\
-	 src/vector_processor_controller.sv  	\
-	 src/vector_processor.sv				\
-	 test/vector_processor_tb.sv			\
-	 src/vector_processor_datapath.sv
+# ========= FILE LISTS ===========
 
-DEFINES_VIV:= define/vec_de_csr_defs.svh 	\
-	define/vec_regfile_defs.svh			\
-	define/vector_processor_defs.svh
+PKG_SV := ./AXI-4/define/axi_4_pkg.sv
+SRC_PKG_HDR := \
+	./define/vec_de_csr_defs.svh \
+	./define/vec_regfile_defs.svh \
+	./define/vector_processor_defs.svh \
+	./AXI-4/define/axi_4_defs.svh
 
-WORK_DIR = work
+SRC_SV := ./src/val_ready_controller.sv \
+		  ./src/vec_csr_dec.sv \
+		  ./src/vec_lsu.sv \
+		  ./src/vec_regfile.sv \
+		  ./src/vec_csr_regfile.sv \
+		  ./src/vec_decode.sv \
+		  ./src/vec_mask_unit.sv \
+		  ./src/vector_processor_controller.sv \
+		  ./src/vector_processor.sv \
+		  ./src/vector_processor_datapath.sv \
+		  ./test/vector_processor_tb.sv \
+		  ./AXI-4/src/axi_4_master_controller.sv \
+		  ./AXI-4/src/axi_4_master.sv \
+		  ./AXI-4/src/axi_4_slave_controller.sv \
+		  ./AXI-4/src/axi_4_slave_mem.sv
 
-COMP_OPTS_SV := --incr --relax
+INCLUDE_DIRS := \
+	+incdir+$(PWD)/define \
+	+incdir+$(PWD)/AXI-4/define \
+	+incdir+$(PWD)/src \
+	+incdir+$(PWD)/AXI-4/src \
+	+incdir+$(PWD)/test
 
+WORK_DIR := work
 TB_TOP := vector_processor_tb
 MODULE := vector_processor_tb
+COMP_OPTS_SV := --incr --relax
 
-#==== Default target - running VIVADO simulation without drawing waveforms ====#
-.PHONY: vivado viv_elaborate viv_compile
+# ========= VIVADO FLOW ===========
 
-vivado : $(TB_TOP)_snapshot.wdb
+.PHONY: vivado viv_elaborate viv_compile viv_waves clean vsim vsim_compile simulate
 
-viv_elaborate : .elab.timestamp
+vivado: $(TB_TOP)_snapshot.wdb
 
-viv_compile : .comp_sv.timestamp .comp_v.timestamp .comp_vhdl.timestamp
-
-#==== WAVEFORM DRAWING ====#
-.PHONY: viv_waves
-viv_waves : $(TB_TOP)_snapshot.wdb
-	@echo
+viv_waves: $(TB_TOP)_snapshot.wdb
 	@echo "### OPENING VIVADO WAVES ###"
 	xsim --gui $(TB_TOP)_snapshot.wdb
 
-#==== SIMULATION ====#
-$(TB_TOP)_snapshot.wdb : .elab.timestamp 
-	@echo
+$(TB_TOP)_snapshot.wdb: .elab.timestamp
 	@echo "### RUNNING SIMULATION ###"
 	xsim $(TB_TOP)_snapshot --tclbatch xsim_cfg.tcl
 
-#==== ELABORATION ====#
-.elab.timestamp : .comp_sv.timestamp .comp_v.timestamp .comp_vhdl.timestamp
-	@echo 
+.elab.timestamp: .comp_pkg_sv.timestamp .comp_sv.timestamp
 	@echo "### ELABORATION ###"
 	xelab -debug all -top $(TB_TOP) -snapshot $(TB_TOP)_snapshot
-	touch $@	
+	touch $@
 
-#==== COMPILING SYSTEMVERILOG ====#	
-ifeq ($(SRC_SV),)
-.comp_sv.timestamp :
-	@echo 
-	@echo "### NO SYSTEMVERILOG SOUCES GIVEN ###"
-	@echo "### SKIPPED SYSTEMVERILOG COMPILATION ###"
+.comp_pkg_sv.timestamp: $(PKG_SV)
+	@echo "### COMPILING PACKAGES ###"
+	xvlog -sv $(COMP_OPTS_SV) $(INCLUDE_DIRS) $(PKG_SV)
 	touch $@
-else 
-.comp_sv.timestamp : $(SRC_SV)
-	@echo
-	@echo "### COMPILING SYSTEMVERILOG ###"
-	rm -rf xsim_cfg.tcl
-	@echo "log_wave -recursive *" > xsim_cfg.tcl
-	@echo "run all" >> xsim_cfg.tcl
-	@echo "exit" >> xsim_cfg.tcl
-	# verilog -VIVADO  
-	xvlog -sv -d ROOT_PATH="\"$(PWD)\"" $(COMP_OPTS_SV) $(DEFINES_VIV) $(SRC_SV)
-	touch $@
-endif
 
-#==== COMPILING VERILOG ====#	
-ifeq ($(SRC_V),)
-.comp_v.timestamp :
-	@echo
-	@echo "### NO VERILOG SOURCES GIVEN ###"
-	@echo "### SKIPPED VERILOG COMPILATION ###"
+.comp_sv.timestamp: $(SRC_SV)
+	@echo "### COMPILING SV SOURCES ###"
+	rm -f xsim_cfg.tcl
+	echo "log_wave -recursive *" > xsim_cfg.tcl
+	echo "run all" >> xsim_cfg.tcl
+	echo "exit" >> xsim_cfg.tcl
+	xvlog -sv $(COMP_OPTS_SV) $(INCLUDE_DIRS) $(SRC_SV)
 	touch $@
-else
-.comp_v.timestamp : $(SRC_V)
-	@echo 
-	@echo "### COMPILING VERILOG ###"
-	xvlog $(COMP_OPTS_V) $(SRC_V)
-	touch $@
-endif 
 
-#==== COMPILING VHDL ====#	
-ifeq ($(SRC_VHDL),)
-.comp_vhdl.timestamp :
-	@echo
-	@echo "### NO VHDL SOURCES GIVEN ###"
-	@echo "### SKIPPED VHDL COMPILATION ###"
-	touch $@
-else
-.comp_vhdl.timestamp : $(SRC_VHDL)
-	@echo 
-	@echo "### COMPILING VHDL ###"
-	xvhdl $(COMP_OPTS) $(SRC_VHDL)
-	touch $@
-endif
-
-#----------------------#
-#----- MODEL SIM ------#
-#----------------------#
+# ========= MODELSIM FLOW ===========
 
 vsim: vsim_compile simulate
 
-# Create a working library and compile source files
-vsim_compile: $(wildcard *.sv)
-	@echo "Creating work library..."
+vsim_compile:
+	@echo "### COMPILING FOR MODELSIM ###"
 	vlib $(WORK_DIR)
-	@echo "Compiling source files..."
-	vlog -work $(WORK_DIR) +define+ROOT_PATH=\"$(PWD)\" $(SRC_SV)
+	vlog -work $(WORK_DIR) -sv $(INCLUDE_DIRS) $(PKG_SV)
+	vlog -work $(WORK_DIR) -sv $(INCLUDE_DIRS) $(SRC_SV)
 
-# Run the simulation and generate WLF file
-simulate: vsim_compile
-	@echo "Running simulation..."
+simulate:
+	@echo "### RUNNING MODELSIM ###"
 	vsim -L $(WORK_DIR) $(MODULE) -do "add wave -radix Unsigned sim:/$(MODULE)/VECTOR_PROCESSOR/*; run -all"
 
-.PHONY : clean
-clean :
-	@echo "Cleaning up..."
+# ========= CLEANUP ===========
+
+clean:
+	@echo "Cleaning..."
 	rm -rf ./test/__pycache__ ./test/sim_build
 	rm -rf ./test/*.vcd ./test/*.xml ./test/*.log
 	rm -rf $(WORK_DIR) transcript vsim.wlf
