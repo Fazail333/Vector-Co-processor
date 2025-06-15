@@ -61,8 +61,8 @@ module axi4_slave_mem(
 
     // MASTER(VLSU) --> AXI4_SLAVE  
 
-    input   wire read_write_address_channel_t  re_wr_addr_channel,
-    input   wire write_data_channel_t          wr_data_channel,
+    input   read_write_address_channel_t  re_wr_addr_channel,
+    input   write_data_channel_t          wr_data_channel,
 
     // SLAVE(MEMORY) --> AXI 4 MASTER (VLSU) 
     output  read_data_channel_t           re_data_channel,
@@ -88,7 +88,7 @@ module axi4_slave_mem(
     logic   [`STROBE_WIDTH-1:0]     write_strobe;
     logic                           wlast;
     logic   [7:0]                   burst_len;        // Burst Length . Number of burst transfers
-    logic   [5:0]                   burst_size;       // Burst Size . Number of bytes to be transfered in each burst 
+    logic   [7:0]                   burst_size;       // Burst Size . Number of bytes to be transfered in each burst 
     logic   [1:0]                   burst_type;       // Burst type
     logic                           atomic_access;    // Atomic Access
     logic   [3:0]                   mem_type;         // memory type
@@ -176,7 +176,7 @@ module axi4_slave_mem(
                     read_addr_id    <= re_wr_addr_channel.arid;
                     read_addr       <= re_wr_addr_channel.axaddr;
                     burst_len       <= re_wr_addr_channel.axlen + 1;
-                    burst_size      <= 1 << re_wr_addr_channel.axsize;
+                    burst_size      <= (1 << re_wr_addr_channel.axsize);
                     burst_type      <= re_wr_addr_channel.axburst;
                     atomic_access   <= re_wr_addr_channel.axlock;
                     mem_type        <= re_wr_addr_channel.axcache;
@@ -200,7 +200,7 @@ module axi4_slave_mem(
                     write_addr_id   <= re_wr_addr_channel.awid;
                     write_addr      <= re_wr_addr_channel.axaddr;
                     burst_len       <= re_wr_addr_channel.axlen + 1;
-                    burst_size      <= 1 << re_wr_addr_channel.axsize;
+                    burst_size      <= 1<<re_wr_addr_channel.axsize;
                     burst_type      <= re_wr_addr_channel.axburst;
                     atomic_access   <= re_wr_addr_channel.axlock;
                     mem_type        <= re_wr_addr_channel.axcache;
@@ -366,7 +366,6 @@ module axi4_slave_mem(
         if (ld_req && burst_active )begin
             re_data_channel.rid   = read_addr_id;
             re_data_channel.rlast = (burst_counter == burst_len - 1);
-            data_fetched          = 1;
 
             // Response CASE 
             case (addr_valid)
@@ -385,6 +384,8 @@ module axi4_slave_mem(
                     re_data_channel.rresp = `RESP_DECERR;
             end 
             endcase
+            
+            data_fetched          = 1;
         end  
     end
 

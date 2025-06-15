@@ -75,8 +75,8 @@ module axi_4_master(
     output  write_data_channel_t                        wr_data_channel,
 
     // SLAVE(MEMORY) --> AXI 4 MASTER  
-    input   wire read_data_channel_t                         re_data_channel,
-    input   wire write_response_channel_t                    wr_resp_channel
+    input   read_data_channel_t                         re_data_channel,
+    input   write_response_channel_t                    wr_resp_channel
 );
     // axi_4_master_controller --> AXI  4 MASTER
     logic       incre_data_counter;
@@ -383,21 +383,30 @@ end
                         burst_rdata_array[burst_index * `DATA_BUS_WIDTH +: `DATA_BUS_WIDTH] <= re_data_channel.rdata;
                         burst_index <= burst_index + 1;
                     end
+                end
+                else begin
+                    burst_read_err <= 1;    
+                end
+    
+                if (re_data_channel.rlast) begin
+                    burst_active    <= 0;
+                    burst_index     <= 0;
 
-                    if (re_data_channel.rlast) begin
-                        burst_active    <= 0;
-                        burst_index     <= 0;
-
-                        if (burst_read_err)begin
-                            retry_req <= 1;
-                            burst_valid_data <= 0;
-                        end
-                        else begin
-                            retry_req <= 0 ;
-                            burst_valid_data <= 1;
-                        end
+                    if (burst_read_err)begin
+                        retry_req <= 1;
+                        burst_valid_data <= 0;
+                    end
+                    else begin
+                        retry_req <= 0 ;
+                        burst_valid_data <= 1;
                     end
                 end
+                else begin
+                    burst_valid_data <= 0;
+                end
+            end
+            else begin
+                burst_valid_data  <= 0;
             end
         end
     end
@@ -443,8 +452,16 @@ end
                     else begin
                         retry_wr_req     <= 0;
                         burst_wr_valid   <= 1; // successful write
-                    end
+                    end 
                 end
+                else begin  // if id mis-matches that means the burst is failed or done wrong so repeat it
+                    retry_wr_req     <= 1;
+                    burst_wr_valid   <= 0;                   
+                end
+            end
+            else begin
+                burst_write_err   <= 0;
+                burst_wr_valid    <= 0;
             end
         end
     end
