@@ -5,7 +5,7 @@
 
 
 
-`include "../define/vec_regfile_defs.svh"
+`include "vec_regfile_defs.svh"
 
 module vec_regfile (
     // Inputs
