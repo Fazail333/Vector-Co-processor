@@ -2,7 +2,7 @@
 // Date         : 7 April 2025
 // Description  : This file contain the controller for the axi 4 master side (vlsu) that is used for the throughput/pushback control between the memory and vlsu  
 
-import axi_4_pkg::axi_4_master_states_e;
+import axi_4_pkg::*;
 
 module axi_4_master_controller (
     
