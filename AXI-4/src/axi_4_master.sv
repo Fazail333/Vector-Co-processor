@@ -75,8 +75,8 @@ module axi_4_master(
     output  write_data_channel_t                        wr_data_channel,
 
     // SLAVE(MEMORY) --> AXI 4 MASTER  
-    input   read_data_channel_t                         re_data_channel,
-    input   write_response_channel_t                    wr_resp_channel
+    input   wire read_data_channel_t                         re_data_channel,
+    input   wire write_response_channel_t                    wr_resp_channel
 );
     // axi_4_master_controller --> AXI  4 MASTER
     logic       incre_data_counter;

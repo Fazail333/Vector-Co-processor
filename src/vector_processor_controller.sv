@@ -179,7 +179,7 @@ always_comb begin
             default: begin
                 index_str       = 1'b0;
                 data_mux1_sel   = 2'b01;    // scaler1
-                data_mux2_sel   = 1'b01;    // scalar_2
+                data_mux2_sel   = 1'b0;    // scalar_2
                 stride_sel      = 1'b1;     // unit stride
                 offset_vec_en   = 1'b0;     // vector as offset
                 index_unordered = 1'b0;
@@ -242,7 +242,7 @@ always_comb begin
             default: begin
                 index_str       = 1'b0;
                 data_mux1_sel   = 2'b01;    // scaler1
-                data_mux2_sel   = 1'b01;    // scalar_2
+                data_mux2_sel   = 1'b0;    // scalar_2
                 stride_sel      = 1'b1;     // unit stride
                 offset_vec_en   = 1'b0;     // vector as offset
                 index_unordered = 1'b0;
