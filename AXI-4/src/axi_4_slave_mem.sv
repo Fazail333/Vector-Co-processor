@@ -61,8 +61,8 @@ module axi4_slave_mem(
 
     // MASTER(VLSU) --> AXI4_SLAVE  
 
-    input   read_write_address_channel_t  re_wr_addr_channel,
-    input   write_data_channel_t          wr_data_channel,
+    input   wire read_write_address_channel_t  re_wr_addr_channel,
+    input   wire write_data_channel_t          wr_data_channel,
 
     // SLAVE(MEMORY) --> AXI 4 MASTER (VLSU) 
     output  read_data_channel_t           re_data_channel,

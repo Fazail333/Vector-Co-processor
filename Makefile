@@ -13,7 +13,6 @@ SRC_SV := ./src/val_ready_controller.sv \
 		  ./src/vec_regfile.sv \
 		  ./src/vec_csr_regfile.sv \
 		  ./src/vec_decode.sv \
-		  ./src/vec_mask_unit.sv \
 		  ./src/vector_processor_controller.sv \
 		  ./src/vector_processor.sv \
 		  ./src/vector_processor_datapath.sv \
@@ -65,7 +64,7 @@ $(TB_TOP)_snapshot.wdb: .elab.timestamp
 	echo "log_wave -recursive *" > xsim_cfg.tcl
 	echo "run all" >> xsim_cfg.tcl
 	echo "exit" >> xsim_cfg.tcl
-	xvlog -sv $(COMP_OPTS_SV) $(INCLUDE_DIRS) $(SRC_SV)
+	xvlog -sv -d ROOT_PATH="\"$(PWD)\"" $(COMP_OPTS_SV) $(INCLUDE_DIRS) $(SRC_SV)
 	touch $@
 
 # ========= MODELSIM FLOW ===========
@@ -75,8 +74,8 @@ vsim: vsim_compile simulate
 vsim_compile:
 	@echo "### COMPILING FOR MODELSIM ###"
 	vlib $(WORK_DIR)
-	vlog -work $(WORK_DIR) -sv $(INCLUDE_DIRS) $(PKG_SV)
-	vlog -work $(WORK_DIR) -sv $(INCLUDE_DIRS) $(SRC_SV)
+	vlog -work $(WORK_DIR) -sv +define+ROOT_PATH=\"$(PWD)\" $(INCLUDE_DIRS) $(PKG_SV)
+	vlog -work $(WORK_DIR) -sv +define+ROOT_PATH=\"$(PWD)\" $(INCLUDE_DIRS) $(SRC_SV)
 
 simulate:
 	@echo "### RUNNING MODELSIM ###"
